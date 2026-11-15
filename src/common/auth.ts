@@ -12,10 +12,12 @@ import { JwtService } from '@nestjs/jwt';
 import type { Request } from 'express';
 import { Rol } from './enums';
 
+/** Contenido del JWT. Los ids son BIGINT del esquema, enviados como texto. */
 export type UsuarioToken = {
   sub: string;
   correo: string;
   rol: Rol;
+  coordinacionId: string | null;
   licenciaturaId: string | null;
 };
 
@@ -67,9 +69,9 @@ export class AuthGuard implements CanActivate {
   }
 }
 
-/** Capturista y Auxiliar solo ven su licenciatura; el Administrador ve todas. */
-export const verificarLicenciatura = (usuario: UsuarioToken, licenciaturaId: string) => {
-  if (usuario.rol !== Rol.ADMINISTRADOR && usuario.licenciaturaId !== licenciaturaId) {
-    throw new ForbiddenException('Solo puedes consultar la información de tu licenciatura.');
+/** Captura y Auxiliar solo ven su coordinación; el Administrador ve todas. */
+export const verificarCoordinacion = (usuario: UsuarioToken, coordinacionId: string) => {
+  if (usuario.rol !== Rol.ADMINISTRADOR && usuario.coordinacionId !== coordinacionId) {
+    throw new ForbiddenException('Solo puedes consultar la información de tu coordinación.');
   }
 };

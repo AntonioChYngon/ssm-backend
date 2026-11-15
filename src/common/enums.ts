@@ -1,52 +1,14 @@
-// Mismos valores que ssm-frontend/src/lib/types.ts. Cambiar en ambos repos a la vez.
-
+// Códigos de la tabla `rol`. Mismos valores en ssm-frontend/src/lib/types.ts.
 export enum Rol {
   ADMINISTRADOR = 'ADMINISTRADOR',
-  CAPTURISTA = 'CAPTURISTA',
+  CAPTURA = 'CAPTURA',
   AUXILIAR = 'AUXILIAR',
 }
 
-export enum EstadoDocumento {
+// Estados de version_plan y version_informe (CHECK ck_plan_estado / ck_version_informe_estado).
+export enum EstadoVersion {
   BORRADOR = 'BORRADOR',
   EN_REVISION = 'EN_REVISION',
+  APROBADO = 'APROBADO',
   DEVUELTO = 'DEVUELTO',
-  VALIDADO = 'VALIDADO',
 }
-
-export enum EstadoEvidencia {
-  SUBIENDO = 'SUBIENDO',
-  CONVIRTIENDO = 'CONVIRTIENDO',
-  LISTO = 'LISTO',
-  ERROR = 'ERROR',
-}
-
-export enum TipoNotificacion {
-  VENCIMIENTO = 'VENCIMIENTO',
-  HITO = 'HITO',
-  DEVOLUCION = 'DEVOLUCION',
-}
-
-export enum CanalNotificacion {
-  CORREO = 'CORREO',
-  IN_APP = 'IN_APP',
-  AMBOS = 'AMBOS',
-}
-
-export enum TipoDocumento {
-  PLAN = 'PLAN',
-  INFORME = 'INFORME',
-}
-
-// Catálogo de 10 categorías del plan de mejora (HU-04).
-export const CATEGORIAS = [
-  'Personal académico',
-  'Estudiantes',
-  'Plan de estudios',
-  'Evaluación del aprendizaje',
-  'Formación integral',
-  'Servicios de apoyo',
-  'Vinculación',
-  'Investigación',
-  'Infraestructura',
-  'Gestión administrativa',
-] as const;

@@ -4,13 +4,15 @@ services:
     image: docker.io/library/mariadb:11.4
     environment:
       MARIADB_DATABASE: ${DB_NAME:-ssm}
-      MARIADB_USER: ${DB_USER:-ssm}
+      MARIADB_USER: ${DB_USER:-ssm_app}
       MARIADB_PASSWORD: ${DB_PASSWORD:?Define DB_PASSWORD en .env}
       MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?Define DB_ROOT_PASSWORD en .env}
     ports:
       - "3306:3306"
     volumes:
       - ssm-db:/var/lib/mysql
+      # Crea el esquema del equipo la primera vez que arranca el volumen vacío.
+      - ./db/ssm_mariadb.sql:/docker-entrypoint-initdb.d/01-esquema.sql:ro
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
       interval: 10s

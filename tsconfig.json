@@ -16,5 +16,10 @@
     "strict": true,
     "strictPropertyInitialization": false,
     "forceConsistentCasingInFileNames": true
-  }
+  },
+  "exclude": [
+    "node_modules",
+    "dist",
+    "src/modules/_por-migrar"
+  ]
 }

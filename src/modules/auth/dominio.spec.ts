@@ -1,17 +1,19 @@
 import { esContrasenaSegura, esCorreoInstitucional, leerDominios } from './dominio';
 
 describe('Validación de correo institucional', () => {
-  const dominios = leerDominios('acatlan.unam.mx,unam.mx');
+  const dominios = leerDominios(undefined);
 
-  it('acepta correos de los dominios institucionales', () => {
+  it('acepta los dominios definidos en el esquema', () => {
     expect(esCorreoInstitucional('jorge.ramirez@acatlan.unam.mx', dominios)).toBe(true);
-    expect(esCorreoInstitucional('Persona@UNAM.MX', dominios)).toBe(true);
-    expect(esCorreoInstitucional('alumno@pcpuma.acatlan.unam.mx', dominios)).toBe(true);
+    expect(esCorreoInstitucional('423101700@pcpuma.acatlan.unam.mx', dominios)).toBe(true);
+    expect(esCorreoInstitucional('  Persona@ACATLAN.UNAM.MX ', dominios)).toBe(true);
   });
 
-  it('rechaza correos personales o con dominios parecidos', () => {
+  it('rechaza correos personales, otros dominios UNAM y dominios parecidos', () => {
     expect(esCorreoInstitucional('rosa.cruz@gmail.com', dominios)).toBe(false);
-    expect(esCorreoInstitucional('alguien@unam.mx.fake.com', dominios)).toBe(false);
+    expect(esCorreoInstitucional('persona@unam.mx', dominios)).toBe(false);
+    expect(esCorreoInstitucional('alguien@otro.acatlan.unam.mx', dominios)).toBe(false);
+    expect(esCorreoInstitucional('alguien@acatlan.unam.mx.fake.com', dominios)).toBe(false);
     expect(esCorreoInstitucional('sin-arroba', dominios)).toBe(false);
   });
 });

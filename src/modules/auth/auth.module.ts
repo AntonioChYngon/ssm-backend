@@ -3,15 +3,14 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
-import { InjectRepository } from '@nestjs/typeorm';
+import { InjectRepository, TypeOrmModule } from '@nestjs/typeorm';
 import * as bcrypt from 'bcryptjs';
 import { IsEmail, IsString, Length } from 'class-validator';
 import { createHash, randomBytes } from 'node:crypto';
-import { MoreThan, Repository } from 'typeorm';
+import { IsNull, MoreThan, Repository } from 'typeorm';
 import { Publico, UsuarioActual, UsuarioToken } from '../../common/auth';
-import { BitacoraService } from '../bitacora/bitacora.module';
-import { Usuario } from '../usuarios/entities';
-import { UsuariosModule } from '../usuarios/usuarios.module';
+import { AsignacionUsuario, TokenRestauracion, Usuario } from '../../database/entities';
+import { AuditoriaService } from '../auditoria/auditoria.module';
 import { esContrasenaSegura, esCorreoInstitucional, leerDominios } from './dominio';
 
 class LoginDto {
@@ -24,12 +23,13 @@ class LoginDto {
 }
 
 class RecuperarDto {
-  @IsEmail()
+  @IsEmail({}, { message: 'Escribe un correo válido.' })
   correo: string;
 }
 
 class RestablecerDto {
   @IsString()
+  @Length(20, 200)
   token: string;
 
   @IsString()
@@ -39,6 +39,7 @@ class RestablecerDto {
 
 class CambiarContrasenaDto {
   @IsString()
+  @Length(1, 128)
   actual: string;
 
   @IsString()
@@ -46,75 +47,137 @@ class CambiarContrasenaDto {
   nueva: string;
 }
 
-const hashToken = (token: string) => createHash('sha256').update(token).digest('hex');
+/** Datos del usuario que recibe el frontend (nunca incluye el hash). */
+export type PerfilUsuario = {
+  id: string;
+  nombre: string;
+  correo: string;
+  rol: AsignacionUsuario['rolCodigo'];
+  coordinacion: string | null;
+  licenciatura: string | null;
+  activo: boolean;
+};
+
+const COSTO_BCRYPT = 12;
+const MINUTOS_TOKEN = 30;
+const MENSAJE_CREDENCIALES = 'Correo o contraseña incorrectos.';
+const MENSAJE_CONTRASENA = 'La contraseña debe tener al menos 8 caracteres, una mayúscula y un número.';
+// Hash de relleno: si el correo no existe se compara igual, para que el tiempo de respuesta no revele qué cuentas existen.
+const HASH_RELLENO = bcrypt.hashSync('relleno-no-es-una-contrasena', COSTO_BCRYPT);
+
+const sha256 = (texto: string) => createHash('sha256').update(texto).digest('hex');
 
 @Injectable()
 export class AuthService {
   constructor(
     @InjectRepository(Usuario) private readonly usuarios: Repository<Usuario>,
+    @InjectRepository(AsignacionUsuario) private readonly asignaciones: Repository<AsignacionUsuario>,
+    @InjectRepository(TokenRestauracion) private readonly tokens: Repository<TokenRestauracion>,
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
-    private readonly bitacora: BitacoraService,
+    private readonly auditoria: AuditoriaService,
   ) {}
 
-  private dominios() {
-    return leerDominios(this.config.get('DOMINIOS_PERMITIDOS'));
+  private validarDominio(correo: string) {
+    const limpio = correo.trim().toLowerCase();
+    if (!esCorreoInstitucional(limpio, leerDominios(this.config.get('DOMINIOS_PERMITIDOS')))) {
+      throw new BadRequestException('Usa tu correo institucional @acatlan.unam.mx o @pcpuma.acatlan.unam.mx.');
+    }
+    return limpio;
+  }
+
+  private buscarConHash(where: { correo: string } | { id: string }) {
+    const [campo, valor] = 'correo' in where ? ['correo', where.correo] : ['id', where.id];
+    return this.usuarios.createQueryBuilder('u').addSelect('u.hashContrasena').where(`u.${campo} = :valor`, { valor }).getOne();
+  }
+
+  private asignacionActiva(usuarioId: string) {
+    return this.asignaciones.findOne({ where: { usuarioId, activa: true }, relations: { coordinacion: { licenciatura: true } } });
+  }
+
+  private perfil(usuario: Usuario, asignacion: AsignacionUsuario): PerfilUsuario {
+    return {
+      id: usuario.id,
+      nombre: `${usuario.nombre} ${usuario.apellido}`.trim(),
+      correo: usuario.correo,
+      rol: asignacion.rolCodigo,
+      coordinacion: asignacion.coordinacion?.nombre ?? null,
+      licenciatura: asignacion.coordinacion?.licenciatura?.nombre ?? null,
+      activo: usuario.activo,
+    };
   }
 
   async login({ correo, contrasena }: LoginDto) {
-    const limpio = correo.trim().toLowerCase();
-    if (!esCorreoInstitucional(limpio, this.dominios())) {
-      throw new BadRequestException('Usa tu correo institucional @acatlan.unam.mx o @unam.mx.');
+    const limpio = this.validarDominio(correo);
+    const usuario = await this.buscarConHash({ correo: limpio });
+    const contrasenaValida = await bcrypt.compare(contrasena, usuario?.hashContrasena ?? HASH_RELLENO);
+    const asignacion = usuario ? await this.asignacionActiva(usuario.id) : null;
+
+    if (!usuario || !contrasenaValida || !usuario.activo) {
+      if (usuario) {
+        await this.auditoria.registrar(
+          { sub: usuario.id, rol: asignacion?.rolCodigo ?? 'SIN_ROL' },
+          { entidad: 'usuario', entidadId: usuario.id, campo: 'sesion', nuevo: 'INTENTO_FALLIDO' },
+        );
+      }
+      throw new UnauthorizedException(MENSAJE_CREDENCIALES);
     }
-    const usuario = await this.usuarios
-      .createQueryBuilder('u')
-      .addSelect('u.passwordHash')
-      .leftJoinAndSelect('u.licenciatura', 'l')
-      .where('u.correo = :correo', { correo: limpio })
-      .getOne();
-    // Mismo mensaje para usuario inexistente o contraseña incorrecta (no revela qué cuentas existen).
-    if (!usuario || !usuario.activo || !(await bcrypt.compare(contrasena, usuario.passwordHash))) {
-      throw new UnauthorizedException('Correo o contraseña incorrectos.');
+    if (!asignacion) {
+      throw new UnauthorizedException('Tu cuenta no tiene un rol asignado. Contacta al Administrador del sistema.');
     }
-    await this.usuarios.update(usuario.id, { ultimoAcceso: new Date() });
-    const payload: UsuarioToken = { sub: usuario.id, correo: usuario.correo, rol: usuario.rol, licenciaturaId: usuario.licenciaturaId };
-    await this.bitacora.registrar(payload, 'INICIO_SESION', 'Usuario', usuario.id, 'Inicio de sesión');
-    const { passwordHash: _omit, ...publico } = usuario;
-    return { token: await this.jwt.signAsync(payload), usuario: publico };
+
+    const payload: UsuarioToken = {
+      sub: usuario.id,
+      correo: usuario.correo,
+      rol: asignacion.rolCodigo,
+      coordinacionId: asignacion.coordinacionId,
+      licenciaturaId: asignacion.coordinacion?.licenciaturaId ?? null,
+    };
+    await this.auditoria.registrar(payload, { entidad: 'usuario', entidadId: usuario.id, campo: 'sesion', nuevo: 'INICIO_SESION' });
+    return { token: await this.jwt.signAsync(payload), usuario: this.perfil(usuario, asignacion) };
+  }
+
+  async me(token: UsuarioToken): Promise<PerfilUsuario> {
+    const usuario = await this.usuarios.findOneBy({ id: token.sub });
+    const asignacion = await this.asignacionActiva(token.sub);
+    if (!usuario || !usuario.activo || !asignacion) throw new UnauthorizedException('Tu sesión ya no es válida. Vuelve a iniciar sesión.');
+    return this.perfil(usuario, asignacion);
   }
 
   async recuperar({ correo }: RecuperarDto) {
-    const limpio = correo.trim().toLowerCase();
-    if (!esCorreoInstitucional(limpio, this.dominios())) throw new BadRequestException('Ese correo no pertenece al dominio institucional.');
+    const limpio = this.validarDominio(correo);
     const usuario = await this.usuarios.findOneBy({ correo: limpio, activo: true });
     if (usuario) {
+      // Un solo enlace vigente por usuario: los anteriores se marcan como usados.
+      await this.tokens.update({ usuarioId: usuario.id, usadoEn: IsNull() }, { usadoEn: new Date() });
       const token = randomBytes(32).toString('base64url');
-      await this.usuarios.update(usuario.id, { tokenRecuperacion: hashToken(token), tokenRecuperacionExpira: new Date(Date.now() + 30 * 60_000) });
-      // TODO(HU-02): enviar por correo el enlace `${FRONTEND_URL}/recuperar?token=${token}`.
+      await this.tokens.insert({ usuarioId: usuario.id, tokenHash: sha256(token), expiraEn: new Date(Date.now() + MINUTOS_TOKEN * 60_000) });
+      // TODO(HU-02): enviar por correo el enlace `${FRONTEND_URL}/recuperar?token=${token}` con el SMTP institucional.
     }
-    // Respuesta idéntica exista o no la cuenta.
-    return { mensaje: 'Si el correo está registrado, recibirás un enlace válido por 30 minutos.' };
+    // Misma respuesta exista o no la cuenta.
+    return { mensaje: `Si el correo está registrado, recibirás un enlace válido por ${MINUTOS_TOKEN} minutos.` };
   }
 
   async restablecer({ token, nueva }: RestablecerDto) {
-    if (!esContrasenaSegura(nueva)) throw new BadRequestException('La contraseña debe tener 8 caracteres, una mayúscula y un número.');
-    const usuario = await this.usuarios.findOne({ where: { tokenRecuperacion: hashToken(token), tokenRecuperacionExpira: MoreThan(new Date()) } });
-    if (!usuario) throw new BadRequestException('El enlace no es válido o ya venció. Solicita uno nuevo.');
-    await this.usuarios.update(usuario.id, { passwordHash: await bcrypt.hash(nueva, 12), tokenRecuperacion: null, tokenRecuperacionExpira: null, debeCambiarPassword: false });
+    if (!esContrasenaSegura(nueva)) throw new BadRequestException(MENSAJE_CONTRASENA);
+    const registro = await this.tokens.findOneBy({ tokenHash: sha256(token), usadoEn: IsNull(), expiraEn: MoreThan(new Date()) });
+    if (!registro) throw new BadRequestException('El enlace no es válido o ya venció. Solicita uno nuevo.');
+    await this.usuarios.update(registro.usuarioId, { hashContrasena: await bcrypt.hash(nueva, COSTO_BCRYPT) });
+    await this.tokens.update(registro.id, { usadoEn: new Date() });
+    const asignacion = await this.asignacionActiva(registro.usuarioId);
+    if (asignacion) {
+      await this.auditoria.registrar({ sub: registro.usuarioId, rol: asignacion.rolCodigo }, { entidad: 'usuario', entidadId: registro.usuarioId, campo: 'hash_contrasena', nuevo: 'RESTABLECIDA' });
+    }
     return { mensaje: 'Contraseña actualizada. Ya puedes iniciar sesión.' };
   }
 
-  async cambiar(usuarioToken: UsuarioToken, { actual, nueva }: CambiarContrasenaDto) {
-    if (!esContrasenaSegura(nueva)) throw new BadRequestException('La contraseña debe tener 8 caracteres, una mayúscula y un número.');
-    const usuario = await this.usuarios.createQueryBuilder('u').addSelect('u.passwordHash').where('u.id = :id', { id: usuarioToken.sub }).getOne();
-    if (!usuario || !(await bcrypt.compare(actual, usuario.passwordHash))) throw new BadRequestException('La contraseña actual no es correcta.');
-    await this.usuarios.update(usuario.id, { passwordHash: await bcrypt.hash(nueva, 12), debeCambiarPassword: false });
-    await this.bitacora.registrar(usuarioToken, 'PASSWORD_CAMBIADA', 'Usuario', usuario.id, 'Cambio de contraseña');
+  async cambiar(token: UsuarioToken, { actual, nueva }: CambiarContrasenaDto) {
+    if (!esContrasenaSegura(nueva)) throw new BadRequestException(MENSAJE_CONTRASENA);
+    const usuario = await this.buscarConHash({ id: token.sub });
+    if (!usuario || !(await bcrypt.compare(actual, usuario.hashContrasena))) throw new BadRequestException('La contraseña actual no es correcta.');
+    await this.usuarios.update(usuario.id, { hashContrasena: await bcrypt.hash(nueva, COSTO_BCRYPT) });
+    await this.auditoria.registrar(token, { entidad: 'usuario', entidadId: usuario.id, campo: 'hash_contrasena', nuevo: 'CAMBIADA' });
     return { mensaje: 'Contraseña actualizada.' };
-  }
-
-  me(usuario: UsuarioToken) {
-    return this.usuarios.findOneByOrFail({ id: usuario.sub });
   }
 }
 
@@ -140,6 +203,7 @@ export class AuthController {
   }
 
   @Publico()
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('restablecer')
   @HttpCode(200)
   restablecer(@Body() dto: RestablecerDto) {
@@ -161,7 +225,7 @@ export class AuthController {
 }
 
 @Module({
-  imports: [UsuariosModule],
+  imports: [TypeOrmModule.forFeature([Usuario, AsignacionUsuario, TokenRestauracion])],
   controllers: [AuthController],
   providers: [AuthService],
 })
