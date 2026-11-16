@@ -109,11 +109,12 @@ describe('Acceso (HU-01) y endpoints base de HU-02, HU-04 y HU-15', () => {
       expect(mismo.recomendaciones).toHaveLength(antes + 1);
     });
 
-    it('rechaza una fecha fuera de la vigencia, una categoría fuera del catálogo y listas vacías', async () => {
+    it('rechaza fecha fuera de vigencia, categoría fuera del catálogo, listas vacías y metas sin porcentaje', async () => {
       const enviar = (datos: object) => api().post(`/api/ciclos/${cicloId}/plan/recomendaciones`).set('Authorization', `Bearer ${captura}`).send(datos);
       await enviar({ ...nueva(), fechaCumplimiento: '2031-01-01' }).expect(400);
       await enviar({ ...nueva(), categoriaId: '999999' }).expect(400);
       await enviar({ ...nueva(), metas: [] }).expect(400);
+      await enviar({ ...nueva(), metas: ['Mejorar la titulación'] }).expect(400);
       await enviar({ ...nueva(), areaIds: ['999999'] }).expect(400);
     });
 

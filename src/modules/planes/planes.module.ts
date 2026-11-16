@@ -31,6 +31,7 @@ import {
   validarCategoriaDelIndicador,
   validarFechaCumplimiento,
   validarId,
+  validarMetaMedible,
 } from './reglas';
 
 // ---------- Contrato (debe coincidir con ssm-frontend/src/lib/types.ts) ----------
@@ -178,7 +179,7 @@ export class PlanesService {
       const categoria = await this.categoriaValida(tx, dto.categoriaId);
       validarFechaCumplimiento(dto.fechaCumplimiento, ciclo.vigenciaInicio, ciclo.vigenciaFin);
       const acciones = limpiarLista(dto.acciones, 'acción');
-      const metas = limpiarLista(dto.metas, 'meta');
+      const metas = limpiarLista(dto.metas, 'meta').map(validarMetaMedible);
       const areas = await this.areasValidas(tx, dto.areaIds);
       const descripcion = textoObligatorio(dto.descripcion, 'la recomendación');
       const etiquetaFecha = dto.etiquetaFecha?.trim() || null;

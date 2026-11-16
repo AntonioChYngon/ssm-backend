@@ -10,6 +10,7 @@ import {
   validarCategoriaDelIndicador,
   validarFechaCumplimiento,
   validarId,
+  validarMetaMedible,
 } from './reglas';
 
 describe('HU-04 · validarFechaCumplimiento', () => {
@@ -83,5 +84,20 @@ describe('HU-04 · orden e identificadores', () => {
     expect(validarId('42', 'ciclo')).toBe('42');
     expect(() => validarId('1 OR 1=1', 'ciclo')).toThrow(BadRequestException);
     expect(() => validarId('', 'ciclo')).toThrow(BadRequestException);
+  });
+});
+
+describe('HU-04 · metas medibles (en porcentaje)', () => {
+  it('acepta metas con un porcentaje entre 0 y 100', () => {
+    expect(() => validarMetaMedible('Reducir la deserción al 0%')).not.toThrow();
+    expect(validarMetaMedible('Capacitar al 80% de la planta docente')).toBe('Capacitar al 80% de la planta docente');
+    expect(() => validarMetaMedible('Renovar el 100 % de los equipos')).not.toThrow();
+    expect(() => validarMetaMedible('Pasar de 40% a 75,5% de titulación')).not.toThrow();
+  });
+
+  it('rechaza metas sin porcentaje o fuera de rango', () => {
+    expect(() => validarMetaMedible('Mejorar la titulación')).toThrow(BadRequestException);
+    expect(() => validarMetaMedible('Capacitar a 30 profesores')).toThrow(BadRequestException);
+    expect(() => validarMetaMedible('Superar el 120% de la matrícula')).toThrow(BadRequestException);
   });
 });

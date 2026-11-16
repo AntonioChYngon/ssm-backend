@@ -63,5 +63,22 @@ export const validarCategoriaDelIndicador = (categoriaIndicador: string, categor
 /** Siguiente número de orden (1 si no hay ninguno). */
 export const siguienteOrden = (ordenes: number[]) => (ordenes.length === 0 ? 1 : Math.max(...ordenes) + 1);
 
-// TODO(HU-04): "Metas medibles": decidir con el equipo cómo validar que una meta sea cuantitativa
-// (por ejemplo, exigir un número o un porcentaje en el texto).
+/** Porcentajes escritos como "80%", "80 %", "12.5%" o "12,5%". */
+const PORCENTAJE = /(\d{1,3}(?:[.,]\d{1,2})?)\s*%/g;
+
+/**
+ * Metas medibles (decisión del 16/11/2026): cada meta expresa su objetivo en porcentaje, de 0% a 100%
+ * (0% sirve para metas de reducción, p. ej. "bajar la deserción al 0%").
+ * El plazo de ese porcentaje es la fecha de cumplimiento de la recomendación, que ya se valida dentro de la vigencia;
+ * así el objetivo queda comprometido antes de la fecha compromiso. Los hitos (HU-12) marcan los porcentajes intermedios.
+ */
+export const validarMetaMedible = (meta: string) => {
+  const porcentajes = [...meta.matchAll(PORCENTAJE)].map((m) => Number(m[1].replace(',', '.')));
+  if (porcentajes.length === 0) {
+    throw new BadRequestException(`La meta "${meta.slice(0, 60)}" debe indicar su objetivo en porcentaje (por ejemplo, "Capacitar al 80% de la planta docente").`);
+  }
+  if (porcentajes.some((p) => p > 100)) {
+    throw new BadRequestException(`El porcentaje de la meta "${meta.slice(0, 60)}" debe estar entre 0% y 100%.`);
+  }
+  return meta;
+};
