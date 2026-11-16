@@ -1,5 +1,16 @@
-import { BadRequestException } from '@nestjs/common';
-import { limpiarLista, validarFechaCumplimiento } from './reglas';
+import { BadRequestException, ConflictException } from '@nestjs/common';
+import { EstadoVersion } from '../../common/enums';
+import {
+  esEditable,
+  exigirPlanEditable,
+  limpiarLista,
+  siguienteOrden,
+  textoObligatorio,
+  validarCatalogo,
+  validarCategoriaDelIndicador,
+  validarFechaCumplimiento,
+  validarId,
+} from './reglas';
 
 describe('HU-04 · validarFechaCumplimiento', () => {
   const inicio = '2024-11-28';
@@ -18,12 +29,59 @@ describe('HU-04 · validarFechaCumplimiento', () => {
   });
 });
 
-describe('HU-04 · limpiarLista', () => {
+describe('HU-04 · limpiarLista y textoObligatorio', () => {
   it('quita vacíos y exige al menos un elemento', () => {
     expect(limpiarLista([' Curso ', ''], 'acción')).toEqual(['Curso']);
     expect(() => limpiarLista(['  '], 'meta')).toThrow(BadRequestException);
   });
 
-  it.todo('rechaza una categoría que no esté en el catálogo de 10');
-  it.todo('permite varias recomendaciones en un mismo indicador');
+  it('recorta el texto y rechaza uno vacío', () => {
+    expect(textoObligatorio('  Indicador 1 ', 'el indicador')).toBe('Indicador 1');
+    expect(() => textoObligatorio('   ', 'el indicador')).toThrow(BadRequestException);
+    expect(() => textoObligatorio(undefined, 'el indicador')).toThrow(BadRequestException);
+  });
+});
+
+describe('HU-04 · catálogos cerrados', () => {
+  const categorias = new Set(['1', '2', '3', '4', '5', '6', '7', '8', '9', '10']);
+
+  it('rechaza una categoría que no esté en el catálogo de 10', () => {
+    expect(() => validarCatalogo(['11'], categorias, 'la categoría')).toThrow(BadRequestException);
+    expect(() => validarCatalogo([''], categorias, 'la categoría')).toThrow(BadRequestException);
+    expect(validarCatalogo(['3'], categorias, 'la categoría')).toEqual(['3']);
+  });
+
+  it('quita áreas repetidas y rechaza si alguna no existe', () => {
+    const areas = new Set(['1', '2']);
+    expect(validarCatalogo(['2', '1', '2'], areas, 'el área')).toEqual(['2', '1']);
+    expect(() => validarCatalogo(['1', '99'], areas, 'el área')).toThrow(BadRequestException);
+  });
+
+  it('un indicador existente solo acepta recomendaciones de su categoría', () => {
+    expect(() => validarCategoriaDelIndicador('1', '1')).not.toThrow();
+    expect(() => validarCategoriaDelIndicador('1', '2')).toThrow(BadRequestException);
+  });
+});
+
+describe('HU-04 · estado del plan', () => {
+  it('solo BORRADOR y DEVUELTO se pueden editar', () => {
+    expect(esEditable(EstadoVersion.BORRADOR)).toBe(true);
+    expect(esEditable(EstadoVersion.DEVUELTO)).toBe(true);
+    expect(() => exigirPlanEditable(EstadoVersion.EN_REVISION)).toThrow(ConflictException);
+    expect(() => exigirPlanEditable(EstadoVersion.APROBADO)).toThrow(ConflictException);
+  });
+});
+
+describe('HU-04 · orden e identificadores', () => {
+  it('permite varias recomendaciones en un mismo indicador (orden consecutivo)', () => {
+    expect(siguienteOrden([])).toBe(1);
+    expect(siguienteOrden([1, 2])).toBe(3);
+    expect(siguienteOrden([1, 5, 3])).toBe(6);
+  });
+
+  it('solo acepta ids numéricos', () => {
+    expect(validarId('42', 'ciclo')).toBe('42');
+    expect(() => validarId('1 OR 1=1', 'ciclo')).toThrow(BadRequestException);
+    expect(() => validarId('', 'ciclo')).toThrow(BadRequestException);
+  });
 });
