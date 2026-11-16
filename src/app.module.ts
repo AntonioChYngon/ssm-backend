@@ -42,6 +42,9 @@ import { UsuariosModule } from './modules/usuarios/usuarios.module';
         charset: 'utf8mb4_unicode_ci',
         // DATE como texto YYYY-MM-DD y BIGINT como texto para no perder precisión.
         dateStrings: ['DATE'],
+        // Todas las fechas y horas en UTC, igual que MariaDB en el contenedor, el CI y producción.
+        // Sin esto, Node escribe la hora local y choca con CURRENT_TIMESTAMP (p. ej. ck_token_expiracion).
+        timezone: 'Z',
         supportBigNumbers: true,
         bigNumberStrings: true,
       }),

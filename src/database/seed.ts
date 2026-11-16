@@ -36,6 +36,7 @@ const main = async () => {
     database: process.env.DB_NAME ?? 'ssm',
     entities: ENTIDADES_ACCESO,
     synchronize: false,
+    timezone: 'Z',
     // Necesario para ejecutar el archivo de datos de desarrollo en una sola llamada.
     multipleStatements: true,
     supportBigNumbers: true,
