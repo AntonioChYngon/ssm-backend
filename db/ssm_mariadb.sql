@@ -35,8 +35,11 @@ CREATE TABLE usuario (
     correo          VARCHAR(254) NOT NULL UNIQUE,
     hash_contrasena VARCHAR(255) NOT NULL,
     activo          BOOLEAN NOT NULL DEFAULT TRUE,
+    -- Preferencia para avisos no críticos (recordatorios de hitos). Ver docs/decisiones.md (D4.3).
+    canal_notificacion VARCHAR(10) NOT NULL DEFAULT 'AMBOS',
     creado_en       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     actualizado_en  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT ck_usuario_canal CHECK (canal_notificacion IN ('CORREO', 'IN_APP', 'AMBOS')),
     CONSTRAINT ck_usuario_correo_institucional CHECK (
         correo REGEXP '(?i)^[a-z0-9._%+-]+@(acatlan[.]unam[.]mx|pcpuma[.]acatlan[.]unam[.]mx)$'
     )
@@ -217,6 +220,8 @@ CREATE TABLE recomendacion_area (
 CREATE TABLE hito_avance (
     hito_id             BIGINT AUTO_INCREMENT PRIMARY KEY,
     recomendacion_id    BIGINT NOT NULL,
+    -- Entregable verificable del hito, p. ej. "Programa de actualización aprobado". Ver D4.1.
+    descripcion         VARCHAR(255) NOT NULL,
     fecha_hito          DATE NOT NULL,
     porcentaje_esperado DECIMAL(5,2) NOT NULL,
     creado_por          BIGINT NOT NULL,
@@ -245,8 +250,15 @@ CREATE TABLE observacion_plan (
     recomendacion_id    BIGINT NULL,
     comentario          TEXT NOT NULL,
     creada_en           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    -- Captura/Auxiliar la marca como atendida con una respuesta; el Administrador la revisa. Ver D4.2.
+    atendida_en         DATETIME NULL,
+    atendida_por        BIGINT NULL,
+    respuesta           TEXT NULL,
     CONSTRAINT fk_obsplan_revision FOREIGN KEY (revision_plan_id) REFERENCES revision_plan(revision_plan_id),
-    CONSTRAINT fk_obsplan_recomendacion FOREIGN KEY (recomendacion_id) REFERENCES recomendacion(recomendacion_id)
+    CONSTRAINT fk_obsplan_recomendacion FOREIGN KEY (recomendacion_id) REFERENCES recomendacion(recomendacion_id),
+    CONSTRAINT fk_obsplan_atendida_por FOREIGN KEY (atendida_por) REFERENCES usuario(usuario_id),
+    CONSTRAINT ck_obsplan_atendida CHECK ((atendida_en IS NULL AND atendida_por IS NULL AND respuesta IS NULL)
+                                    OR (atendida_en IS NOT NULL AND atendida_por IS NOT NULL AND respuesta IS NOT NULL))
 ) ENGINE=InnoDB;
 
 -- ---------------------------------------------------------------------
@@ -334,8 +346,14 @@ CREATE TABLE observacion_informe (
     recomendacion_id       BIGINT NULL,
     comentario             TEXT NOT NULL,
     creada_en              DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    atendida_en            DATETIME NULL,
+    atendida_por           BIGINT NULL,
+    respuesta              TEXT NULL,
     CONSTRAINT fk_obsinf_revision FOREIGN KEY (revision_informe_id) REFERENCES revision_informe(revision_informe_id),
-    CONSTRAINT fk_obsinf_recomendacion FOREIGN KEY (recomendacion_id) REFERENCES recomendacion(recomendacion_id)
+    CONSTRAINT fk_obsinf_recomendacion FOREIGN KEY (recomendacion_id) REFERENCES recomendacion(recomendacion_id),
+    CONSTRAINT fk_obsinf_atendida_por FOREIGN KEY (atendida_por) REFERENCES usuario(usuario_id),
+    CONSTRAINT ck_obsinf_atendida CHECK ((atendida_en IS NULL AND atendida_por IS NULL AND respuesta IS NULL)
+                                    OR (atendida_en IS NOT NULL AND atendida_por IS NOT NULL AND respuesta IS NOT NULL))
 ) ENGINE=InnoDB;
 
 -- ---------------------------------------------------------------------
@@ -367,8 +385,11 @@ CREATE TABLE notificacion (
     programada_en   DATETIME NULL,
     enviada_en      DATETIME NULL,
     leida_en        DATETIME NULL,
+    -- Canal decidido al crear el aviso: preferencia del usuario, salvo avisos críticos (siempre AMBOS). Ver D4.3.
+    canal           VARCHAR(10) NOT NULL DEFAULT 'AMBOS',
     estado          VARCHAR(20) NOT NULL DEFAULT 'PENDIENTE',
     CONSTRAINT fk_notificacion_usuario FOREIGN KEY (usuario_id) REFERENCES usuario(usuario_id),
+    CONSTRAINT ck_notificacion_canal CHECK (canal IN ('CORREO', 'IN_APP', 'AMBOS')),
     CONSTRAINT ck_notificacion_estado CHECK (estado IN ('PENDIENTE', 'ENVIADA', 'FALLIDA'))
 ) ENGINE=InnoDB;
 

@@ -21,8 +21,9 @@ export class ReportesService {
 
   // TODO(HU-15) resumenAtencion():
   //   1. Recomendaciones de la última version_plan APROBADA del ciclo VIGENTE de cada licenciatura.
-  //   2. Para cada recomendación, el porcentaje del avance más reciente en un version_informe APROBADO
-  //      (decisión del equipo: confirmar si cuenta el último aprobado o el último capturado).
+  //   2. Para cada recomendación, el porcentaje del ÚLTIMO INFORME CAPTURADO (decisión D3 del 16/11/2026):
+  //      la version_informe más reciente del informe más reciente del ciclo, en cualquier estado
+  //      (BORRADOR, EN_REVISION, DEVUELTO o APROBADO). Ver docs/decisiones.md.
   //   3. contarPorEstatus() por licenciatura. Si llega licenciaturaId, filtrar solo esa.
   //   Pista: un QueryBuilder sobre `recomendacion` con joins a indicador → version_plan → ciclo_acreditacion → licenciatura
   //   y un LEFT JOIN a avance_recomendacion. Los datos de prueba vienen en db/datos_desarrollo.sql.

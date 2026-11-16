@@ -105,8 +105,8 @@ SELECT r.recomendacion_id, a.area_id FROM recomendacion r
 JOIN area_responsable a ON a.nombre = 'Secretaría Académica';
 
 -- ---------- Hitos intermedios (HU-12) para los planes aprobados ----------
-INSERT INTO hito_avance (recomendacion_id, fecha_hito, porcentaje_esperado, creado_por)
-SELECT r.recomendacion_id, '2026-06-30', 50.00, @admin
+INSERT INTO hito_avance (recomendacion_id, descripcion, fecha_hito, porcentaje_esperado, creado_por)
+SELECT r.recomendacion_id, 'Avance intermedio de ejemplo: mitad de las actividades concluidas', '2026-06-30', 50.00, @admin
 FROM recomendacion r
 JOIN indicador i ON i.indicador_id = r.indicador_id
 JOIN version_plan vp ON vp.version_plan_id = i.version_plan_id
