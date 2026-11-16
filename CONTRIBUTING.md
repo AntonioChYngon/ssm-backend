@@ -10,7 +10,7 @@ Guía para el equipo de desarrollo (Algorix). Repos: [`ssm-backend`](https://git
 | **HU-04** Captura del Plan de Mejora | Jesus | `src/modules/planes/` | `/licenciatura/plan` |
 | **HU-15** Resumen por estatus de cumplimiento | Antonio | `src/modules/reportes/` | `/admin/reportes/atencion` |
 
-Cada módulo ya trae su controlador, el contrato (DTO), un endpoint funcionando como ejemplo, reglas con pruebas y la lista de `TODO(HU-xx)`. Busca tus pendientes con:
+Cada módulo ya trae su controlador, el contrato (DTO), un endpoint funcionando como ejemplo, reglas con pruebas y la lista de `TODO(HU-xx)`. Las decisiones funcionales del equipo están en [`docs/decisiones.md`](docs/decisiones.md). Busca tus pendientes con:
 
 ```bash
 git grep "TODO(HU-02)"     # o HU-04, HU-15
@@ -33,11 +33,12 @@ git grep "TODO(HU-02)"     # o HU-04, HU-15
 - [ ] Solo se edita un plan en `BORRADOR` o `DEVUELTO`; si no existe, crear la versión 1.
 - [ ] Frontend: formulario de `/licenciatura/plan` con los catálogos de `obtenerCatalogos()`.
 - [ ] Frontend: tabla "Plan de Mejora Continua" (Anexo 1) al terminar la captura.
+- [ ] Metas en porcentaje (D2): `validarMetaMedible()`.
 - [ ] Pruebas: completar los `it.todo`.
 
 **HU-15 · Antonio**
 - [ ] `GET /reportes/atencion?licenciaturaId=`: conteo por licenciatura con `contarPorEstatus()`.
-- [ ] Confirmar con el equipo qué avance cuenta: el del último informe aprobado (recomendado) o el último capturado.
+- [x] Decidido (D3): cuenta el **último informe capturado**, en cualquier estado.
 - [ ] Frontend: conectar `/admin/reportes/atencion` a `obtenerResumenAtencion()` y el filtro por licenciatura.
 - [ ] Pruebas: con los datos de desarrollo, Derecho debe dar 1 / 1 / 2 y Economía 2 / 1 / 0.
 
@@ -102,7 +103,7 @@ No necesitas el backend. En `ssm-frontend`, crea `.env.local` con `NEXT_PUBLIC_U
 Reglas para no pisarnos:
 - Trabaja dentro de tu módulo. Si necesitas tocar archivos compartidos (`src/database/*.entities.ts`, `src/common/*`, `src/lib/types.ts`, `db/*.sql`), hazlo en un PR pequeño aparte y avisa al equipo.
 - Si cambias un contrato (DTO), cambia también `ssm-frontend/src/lib/types.ts` en un PR del frontend con el mismo nombre de rama.
-- Cambios al esquema de la base: primero en `db/ssm_mariadb.sql`, con acuerdo del equipo.
+- Cambios al esquema de la base: primero en `db/ssm_mariadb.sql`, con acuerdo del equipo, y una migración en `db/migraciones/` para las bases que ya existen.
 - Nunca subas `.env` ni contraseñas reales. Usa siempre datos ficticios.
 
 ### Dependencias (npm)

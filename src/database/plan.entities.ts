@@ -242,6 +242,10 @@ export class HitoAvance {
   @Column({ name: 'recomendacion_id', type: 'bigint' })
   recomendacionId: string;
 
+  /** Entregable verificable del hito (D4.1). */
+  @Column({ length: 255 })
+  descripcion: string;
+
   @Column({ name: 'fecha_hito', type: 'date' })
   fechaHito: string;
 
