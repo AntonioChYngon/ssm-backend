@@ -62,7 +62,20 @@ npm run start:dev                     # API en http://localhost:3001/api · Swag
 
 - **Correos:** todo lo que envía el backend aparece en http://localhost:8025 (Mailpit). No sale nada a internet.
 - **Empezar de cero:** `podman compose down -v`, luego `podman compose up -d db correo` y `npm run seed`.
-- **Ver la base:** DBeaver a `localhost:3306`, usuario `ssm_app` con tu `DB_PASSWORD`.
+- **Ver la base:** DBeaver a `localhost:3306`, usuario `ssm_app` con tu `DB_PASSWORD`. Para confirmar que estás en el contenedor, `SELECT @@hostname;` debe mostrar un código (no el nombre de tu computadora).
+
+### Si usas Windows
+
+- **Usa cmd (Símbolo del sistema), no PowerShell.** PowerShell bloquea `npm` con el error *"running scripts is disabled on this system"*. Si prefieres PowerShell, ejecuta una vez `Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned` y vuelve a abrirlo.
+- **Rutas en cmd:** tu carpeta de usuario es `%USERPROFILE%` (por ejemplo `%USERPROFILE%\Downloads`). `$HOME` solo funciona en PowerShell.
+- **Podman necesita WSL2:** si Podman Desktop no puede crear la máquina, ejecuta `wsl --install` en PowerShell como administrador y reinicia.
+- **¿Tienes MariaDB o MySQL instalado en Windows?** Usa el mismo puerto 3306 que el contenedor. Deténlo en *Servicios* (busca "Servicios" en Inicio → MariaDB → Detener) antes de `podman compose up`.
+- **Una terminal por proceso:** una para `npm run start:dev` (backend), otra para `npm run dev` (frontend) y otra para comandos sueltos (`git`, `npm run seed`, `podman`). Los servidores no devuelven el control mientras corren.
+- **"EADDRINUSE: address already in use :::3001"** significa que el backend ya está corriendo en otra ventana. Ciérrala, o busca el proceso con `netstat -ano | findstr :3001` y termínalo con `taskkill /PID <número> /F`.
+- **Cambiaste el `.env`:** reinicia el backend (Ctrl + C y `npm run start:dev`); el modo watch no relee el `.env`.
+- **Cambiaste `DB_PASSWORD` o `DB_ROOT_PASSWORD` después de crear el contenedor:** MariaDB solo las lee la primera vez. Recrea la base con `podman compose down -v`, `podman compose up -d db correo` y `npm run seed`.
+- Los avisos *"LF will be replaced by CRLF"* de `git add` son normales y no afectan el código.
+- Nunca guardes archivos `.patch`, `.zip` u otros sueltos dentro de la carpeta del repo: `git add -A` los sube.
 
 ### ¿Solo frontend?
 
