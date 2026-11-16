@@ -18,7 +18,7 @@ git grep "TODO(HU-02)"     # o HU-04, HU-15
 
 ### Tareas por historia
 
-**HU-02 · Desarrollador/a 1**
+**HU-02 · Christian**
 - [ ] `POST /usuarios`: alta de Captura o Auxiliar con contraseña temporal enviada por correo.
 - [ ] `PATCH /usuarios/:id/asignacion`: cambio de titular; el historial queda en la coordinación.
 - [ ] `POST /usuarios/:id/restablecer` y `PATCH /usuarios/:id/estado`.
@@ -27,7 +27,7 @@ git grep "TODO(HU-02)"     # o HU-04, HU-15
 - [ ] Frontend: `/recuperar?token=…` debe mostrar el formulario de nueva contraseña y llamar a `restablecerContrasena`.
 - [ ] Pruebas: completar los `it.todo` de `reglas.spec.ts` y `test/acceso.e2e-spec.ts`.
 
-**HU-04 · Desarrollador/a 2**
+**HU-04 · Jesus**
 - [ ] `GET /ciclos/:cicloId/plan`: plan vigente con indicadores, recomendaciones, acciones, metas y áreas.
 - [ ] `POST /ciclos/:cicloId/plan/recomendaciones`: guardar todo en una transacción y auditarlo.
 - [ ] Solo se edita un plan en `BORRADOR` o `DEVUELTO`; si no existe, crear la versión 1.
@@ -35,7 +35,7 @@ git grep "TODO(HU-02)"     # o HU-04, HU-15
 - [ ] Frontend: tabla "Plan de Mejora Continua" (Anexo 1) al terminar la captura.
 - [ ] Pruebas: completar los `it.todo`.
 
-**HU-15 · Desarrollador/a 3**
+**HU-15 · Antonio**
 - [ ] `GET /reportes/atencion?licenciaturaId=`: conteo por licenciatura con `contarPorEstatus()`.
 - [ ] Confirmar con el equipo qué avance cuenta: el del último informe aprobado (recomendado) o el último capturado.
 - [ ] Frontend: conectar `/admin/reportes/atencion` a `obtenerResumenAtencion()` y el filtro por licenciatura.
