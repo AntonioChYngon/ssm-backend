@@ -92,6 +92,15 @@ Reglas para no pisarnos:
 - Cambios al esquema de la base: primero en `db/ssm_mariadb.sql`, con acuerdo del equipo.
 - Nunca subas `.env` ni contraseñas reales. Usa siempre datos ficticios.
 
+### Dependencias (npm)
+
+- **Nunca uses `npm audit fix --force`.** Sube versiones mayores sin avisar: lleva TypeORM a 1.x y baja `ts-jest` a una versión incompatible con TypeScript 5, y el proyecto deja de compilar.
+- Tampoco uses `--force` ni `--legacy-peer-deps` para "destrabar" un `npm install`: esconden el conflicto en vez de resolverlo.
+- Si `npm audit` reporta algo **high** o **critical** en una dependencia que corre en el servidor (sección `dependencies`), actualiza solo ese paquete: `npm install paquete@versión-corregida`, corre `npm run typecheck` y `npm test`, y súbelo en un PR propio.
+- Los avisos en herramientas de desarrollo (`jest`, `ts-jest`, `@nestjs/cli`) no viajan al servidor: se revisan en equipo y se actualizan cuando haya versión compatible.
+- Para agregar o cambiar una dependencia, sube siempre `package.json` y `package-lock.json` juntos. Sin el lock, el CI (`npm ci`) falla.
+- ¿Algo se rompió tras instalar? Restaura con `git checkout -- package.json package-lock.json`, borra `node_modules` y vuelve a correr `npm install`.
+
 ## 5. Seguridad (lineamientos DGTIC)
 
 - Todo endpoint nuevo pide sesión por defecto. Usa `@Roles(...)` para limitar por rol y `verificarCoordinacion()` para que Captura y Auxiliar solo vean su licenciatura.
