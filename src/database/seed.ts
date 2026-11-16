@@ -1,8 +1,11 @@
-// Usuarios de prueba para la Interfaz 1 (login), respetando las reglas del esquema del equipo.
-// Crea (si no existen): licenciatura Actuaría + su coordinación, un Administrador y un Captura.
-// Uso:  npm run seed   (lee SEED_* del archivo .env)
+// Usuarios de prueba y datos de desarrollo, respetando las reglas del esquema del equipo.
+// 1. Crea (si no existen): licenciatura Actuaría + su coordinación, un Administrador y un Captura.
+// 2. Si SEED_DATOS_DESARROLLO=true y aún no hay planes, carga db/datos_desarrollo.sql.
+// Uso:  npm run seed   (lee SEED_* del archivo .env). Se puede correr varias veces sin duplicar.
 import 'reflect-metadata';
 import 'dotenv/config';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import * as bcrypt from 'bcryptjs';
 import { DataSource } from 'typeorm';
 import { Rol } from '../common/enums';
@@ -33,6 +36,8 @@ const main = async () => {
     database: process.env.DB_NAME ?? 'ssm',
     entities: ENTIDADES_ACCESO,
     synchronize: false,
+    // Necesario para ejecutar el archivo de datos de desarrollo en una sola llamada.
+    multipleStatements: true,
     supportBigNumbers: true,
     bigNumberStrings: true,
   });
@@ -64,6 +69,17 @@ const main = async () => {
       console.log(`✔ ${semilla.rol.padEnd(13)} ${semilla.correo}`);
     }
   });
+
+  if (process.env.SEED_DATOS_DESARROLLO === 'true') {
+    const [{ total }] = await ds.query('SELECT COUNT(*) AS total FROM version_plan');
+    if (Number(total) > 0) {
+      console.log('• Datos de desarrollo: ya existen planes, no se cargan de nuevo.');
+    } else {
+      const sql = readFileSync(join(__dirname, '..', '..', 'db', 'datos_desarrollo.sql'), 'utf8');
+      await ds.transaction((tx) => tx.query(sql));
+      console.log('✔ Datos de desarrollo cargados (planes, recomendaciones y avances de prueba).');
+    }
+  }
 
   await ds.destroy();
   console.log('Seed listo.');

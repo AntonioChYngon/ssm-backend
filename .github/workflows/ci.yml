@@ -1,0 +1,68 @@
+# Se ejecuta en cada Pull Request y en cada push a main.
+# GitHub levanta su propia MariaDB, carga el esquema del equipo y los datos de desarrollo,
+# y corre las pruebas. Así nadie necesita MariaDB en su computadora para saber si su código funciona.
+name: CI backend
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  pruebas:
+    runs-on: ubuntu-latest
+
+    services:
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MARIADB_ROOT_PASSWORD: root-ci
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=10s --health-timeout=5s --health-retries=10
+
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_USER: root
+      DB_PASSWORD: root-ci
+      DB_NAME: ssm
+      JWT_SECRET: secreto-solo-para-ci-no-usar-en-otro-lado
+      CORS_ORIGIN: http://localhost:3000
+      DOMINIOS_PERMITIDOS: acatlan.unam.mx,pcpuma.acatlan.unam.mx
+      SEED_ADMIN_CORREO: admin.ci@acatlan.unam.mx
+      SEED_ADMIN_PASSWORD: AdminCi2026
+      SEED_CAPTURA_CORREO: captura.ci@acatlan.unam.mx
+      SEED_CAPTURA_PASSWORD: CapturaCi2026
+      SEED_DATOS_DESARROLLO: 'true'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Revisar tipos
+        run: npm run typecheck
+
+      - name: Pruebas unitarias
+        run: npm test
+
+      - name: Cargar el esquema del equipo
+        run: mysql -h 127.0.0.1 -P 3306 -uroot -proot-ci < db/ssm_mariadb.sql
+
+      - name: Seed (usuarios y datos de desarrollo)
+        run: npm run seed
+
+      - name: Pruebas de integración
+        run: npm run test:e2e
+
+      - name: Compilar
+        run: npm run build

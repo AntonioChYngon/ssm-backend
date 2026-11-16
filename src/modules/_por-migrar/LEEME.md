@@ -8,10 +8,10 @@ El equipo definió su propio esquema (`db/ssm_mariadb.sql`), así que se están 
 
 | Módulo | Tablas del esquema del equipo | Estado |
 |---|---|---|
-| auth / usuarios | `usuario`, `rol`, `asignacion_usuario`, `coordinacion`, `token_restauracion_contrasena` | ✅ migrado (login) |
+| auth / usuarios (HU-02 en curso en `src/modules/usuarios`) | `usuario`, `rol`, `asignacion_usuario`, `coordinacion`, `token_restauracion_contrasena` | ✅ migrado (login) |
 | bitacora | `registro_auditoria` | ✅ migrado como `auditoria` |
-| planes | `ciclo_acreditacion`, `version_plan`, `indicador`, `recomendacion`, `accion_recomendacion`, `meta`, `hito_avance`, `revision_plan`, `observacion_plan` | pendiente |
+| planes (HU-04 en curso en `src/modules/planes`) | `ciclo_acreditacion`, `version_plan`, `indicador`, `recomendacion`, `accion_recomendacion`, `meta`, `hito_avance`, `revision_plan`, `observacion_plan` | pendiente |
 | informes | `informe`, `version_informe`, `avance_recomendacion`, `revision_informe`, `observacion_informe` | pendiente |
 | evidencias | `evidencia` | pendiente |
 | notificaciones | `notificacion` | pendiente |
-| reportes | consultas sobre las anteriores | pendiente |
+| reportes (HU-15 en curso en `src/modules/reportes`) | consultas sobre las anteriores | pendiente |

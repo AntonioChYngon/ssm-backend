@@ -7,6 +7,8 @@ API del **Sistema de Seguimiento de Mejora (SSM)** de la FES Acatlán, UNAM. Pro
 - **Base de datos:** esquema del equipo en `db/ssm_mariadb.sql`. TypeORM **no** crea ni modifica tablas (`synchronize: false`).
 - **Despliegue:** Podman (`Containerfile` y `compose.yaml`).
 
+> **¿Eres del equipo?** Empieza por [`CONTRIBUTING.md`](CONTRIBUTING.md): reparto de historias, base de datos con Podman en un comando, pruebas y CI.
+
 ## Arranque local
 
 1. Crea la base con `db/ssm_mariadb.sql` y el usuario de la aplicación con `db/ssm_usuario_app.sql` (DBeaver o cliente `mariadb`).

@@ -6,8 +6,13 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthGuard } from './common/auth';
 import { ENTIDADES_ACCESO } from './database/entities';
+import { ENTIDADES_PLAN } from './database/plan.entities';
 import { AuditoriaModule } from './modules/auditoria/auditoria.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { CorreoModule } from './modules/correo/correo.module';
+import { PlanesModule } from './modules/planes/planes.module';
+import { ReportesModule } from './modules/reportes/reportes.module';
+import { UsuariosModule } from './modules/usuarios/usuarios.module';
 
 // Módulos en migración al esquema del equipo: ver src/modules/_por-migrar/LEEME.md
 
@@ -27,7 +32,10 @@ import { AuthModule } from './modules/auth/auth.module';
         username: config.getOrThrow<string>('DB_USER'),
         password: config.getOrThrow<string>('DB_PASSWORD'),
         database: config.get('DB_NAME', 'ssm'),
-        entities: ENTIDADES_ACCESO,
+        // Entidades compartidas del esquema. Si un módulo necesita una entidad propia, la registra con
+        // TypeOrmModule.forFeature([...]) y autoLoadEntities la agrega sola, sin tocar este archivo.
+        entities: [...ENTIDADES_ACCESO, ...ENTIDADES_PLAN],
+        autoLoadEntities: true,
         // El esquema lo define db/ssm_mariadb.sql. TypeORM nunca debe crear ni alterar tablas.
         synchronize: false,
         migrationsRun: false,
@@ -47,7 +55,12 @@ import { AuthModule } from './modules/auth/auth.module';
       }),
     }),
     AuditoriaModule,
+    CorreoModule,
     AuthModule,
+    // Una línea por historia de usuario. Mantén el orden alfabético para evitar conflictos.
+    PlanesModule, // HU-04
+    ReportesModule, // HU-15
+    UsuariosModule, // HU-02
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

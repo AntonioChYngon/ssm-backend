@@ -11,6 +11,7 @@ import { IsNull, MoreThan, Repository } from 'typeorm';
 import { Publico, UsuarioActual, UsuarioToken } from '../../common/auth';
 import { AsignacionUsuario, TokenRestauracion, Usuario } from '../../database/entities';
 import { AuditoriaService } from '../auditoria/auditoria.module';
+import { CorreoService } from '../correo/correo.module';
 import { esContrasenaSegura, esCorreoInstitucional, leerDominios } from './dominio';
 
 class LoginDto {
@@ -76,6 +77,7 @@ export class AuthService {
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
     private readonly auditoria: AuditoriaService,
+    private readonly correo: CorreoService,
   ) {}
 
   private validarDominio(correo: string) {
@@ -152,7 +154,12 @@ export class AuthService {
       await this.tokens.update({ usuarioId: usuario.id, usadoEn: IsNull() }, { usadoEn: new Date() });
       const token = randomBytes(32).toString('base64url');
       await this.tokens.insert({ usuarioId: usuario.id, tokenHash: sha256(token), expiraEn: new Date(Date.now() + MINUTOS_TOKEN * 60_000) });
-      // TODO(HU-02): enviar por correo el enlace `${FRONTEND_URL}/recuperar?token=${token}` con el SMTP institucional.
+      const enlace = `${this.config.get('FRONTEND_URL', 'http://localhost:3000')}/recuperar?token=${token}`;
+      await this.correo.enviar({
+        para: usuario.correo,
+        asunto: 'Restablece tu contraseña del SSM',
+        texto: `Hola ${usuario.nombre}:\n\nPara crear una contraseña nueva entra a este enlace (vence en ${MINUTOS_TOKEN} minutos):\n${enlace}\n\nSi no lo pediste, ignora este correo.`,
+      });
     }
     // Misma respuesta exista o no la cuenta.
     return { mensaje: `Si el correo está registrado, recibirás un enlace válido por ${MINUTOS_TOKEN} minutos.` };

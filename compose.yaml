@@ -18,6 +18,13 @@ services:
       interval: 10s
       retries: 5
 
+  # Buzón falso para desarrollo: recibe todos los correos del backend. Bandeja en http://localhost:8025
+  correo:
+    image: docker.io/axllent/mailpit:latest
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
   api:
     build:
       context: .
