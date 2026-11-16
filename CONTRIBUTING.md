@@ -6,9 +6,9 @@ Guía para el equipo de desarrollo (Algorix). Repos: [`ssm-backend`](https://git
 
 | Historia | Responsable | Backend | Frontend |
 |---|---|---|---|
-| **HU-02** Cuentas, auxiliares y contraseñas | Desarrollador/a 1 | `src/modules/usuarios/` | `/admin/usuarios`, `/recuperar` |
-| **HU-04** Captura del Plan de Mejora | Desarrollador/a 2 | `src/modules/planes/` | `/licenciatura/plan` |
-| **HU-15** Resumen por estatus de cumplimiento | Desarrollador/a 3 | `src/modules/reportes/` | `/admin/reportes/atencion` |
+| **HU-02** Cuentas, auxiliares y contraseñas | Christian  | `src/modules/usuarios/` | `/admin/usuarios`, `/recuperar` |
+| **HU-04** Captura del Plan de Mejora | Jesus | `src/modules/planes/` | `/licenciatura/plan` |
+| **HU-15** Resumen por estatus de cumplimiento | Antonio | `src/modules/reportes/` | `/admin/reportes/atencion` |
 
 Cada módulo ya trae su controlador, el contrato (DTO), un endpoint funcionando como ejemplo, reglas con pruebas y la lista de `TODO(HU-xx)`. Busca tus pendientes con:
 
