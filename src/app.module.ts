@@ -10,6 +10,7 @@ import { ENTIDADES_PLAN } from './database/plan.entities';
 import { AuditoriaModule } from './modules/auditoria/auditoria.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { CorreoModule } from './modules/correo/correo.module';
+import { NotificacionesModule } from './modules/notificaciones/notificaciones.module';
 import { PlanesModule } from './modules/planes/planes.module';
 import { ReportesModule } from './modules/reportes/reportes.module';
 import { UsuariosModule } from './modules/usuarios/usuarios.module';
@@ -59,6 +60,7 @@ import { UsuariosModule } from './modules/usuarios/usuarios.module';
     }),
     AuditoriaModule,
     CorreoModule,
+    NotificacionesModule,
     AuthModule,
     // Una línea por historia de usuario. Mantén el orden alfabético para evitar conflictos.
     PlanesModule, // HU-04

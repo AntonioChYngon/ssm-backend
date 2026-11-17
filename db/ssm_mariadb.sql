@@ -177,7 +177,8 @@ CREATE TABLE recomendacion (
     recomendacion_id   BIGINT AUTO_INCREMENT PRIMARY KEY,
     indicador_id       BIGINT NOT NULL,
     descripcion        TEXT NOT NULL,
-    fecha_cumplimiento DATE NOT NULL,
+    area_responsable   VARCHAR(250), -- Texto abierto (Plan de Mejora). recomendacion_area queda para el catálogo.
+    fecha_cumplimiento DATE NULL,     -- Opcional en BORRADOR; obligatoria para enviar a validación.
     etiqueta_fecha     VARCHAR(80), -- Ej. "Semestre 2026-1"; la fecha real sirve para alertas.
     orden              INT NOT NULL DEFAULT 1,
     transversal        BOOLEAN NOT NULL DEFAULT FALSE,
@@ -196,14 +197,20 @@ CREATE TABLE accion_recomendacion (
 ) ENGINE=InnoDB;
 
 -- Metas similares pero no idénticas se conservan como registros independientes.
+-- Las Metas (antes "hitos") se capturan con la recomendación y se configuran después
+-- con su fecha compromiso y % esperado (sección Configuración de Metas).
 CREATE TABLE meta (
-    meta_id          BIGINT AUTO_INCREMENT PRIMARY KEY,
-    recomendacion_id BIGINT NOT NULL,
-    descripcion      TEXT NOT NULL,
-    orden            INT NOT NULL DEFAULT 1,
+    meta_id             BIGINT AUTO_INCREMENT PRIMARY KEY,
+    recomendacion_id    BIGINT NOT NULL,
+    descripcion         TEXT NOT NULL,
+    fecha_compromiso    DATE NULL,
+    porcentaje_esperado DECIMAL(5,2) NULL,
+    orden               INT NOT NULL DEFAULT 1,
     CONSTRAINT fk_meta_recomendacion FOREIGN KEY (recomendacion_id) REFERENCES recomendacion(recomendacion_id),
     CONSTRAINT uq_meta_orden UNIQUE (recomendacion_id, orden),
-    CONSTRAINT ck_meta_orden CHECK (orden > 0)
+    CONSTRAINT uq_meta_fecha UNIQUE (recomendacion_id, fecha_compromiso),
+    CONSTRAINT ck_meta_orden CHECK (orden > 0),
+    CONSTRAINT ck_meta_porcentaje CHECK (porcentaje_esperado IS NULL OR (porcentaje_esperado > 0 AND porcentaje_esperado < 100))
 ) ENGINE=InnoDB;
 
 CREATE TABLE recomendacion_area (
@@ -214,6 +221,7 @@ CREATE TABLE recomendacion_area (
     CONSTRAINT fk_recarea_area FOREIGN KEY (area_id) REFERENCES area_responsable(area_id)
 ) ENGINE=InnoDB;
 
+-- Legado: el módulo de Plan de Mejora ahora usa meta.fecha_compromiso y meta.porcentaje_esperado.
 CREATE TABLE hito_avance (
     hito_id             BIGINT AUTO_INCREMENT PRIMARY KEY,
     recomendacion_id    BIGINT NOT NULL,
@@ -404,6 +412,7 @@ CREATE INDEX ix_plan_ciclo_estado ON version_plan(ciclo_id, estado);
 CREATE INDEX ix_recomendacion_indicador ON recomendacion(indicador_id);
 CREATE INDEX ix_recomendacion_fecha ON recomendacion(fecha_cumplimiento);
 CREATE INDEX ix_hito_fecha ON hito_avance(fecha_hito);
+CREATE INDEX ix_meta_fecha ON meta(fecha_compromiso);
 CREATE INDEX ix_informe_ciclo_corte ON informe(ciclo_id, fecha_corte);
 CREATE INDEX ix_avance_recomendacion ON avance_recomendacion(recomendacion_id);
 CREATE INDEX ix_notificacion_usuario_estado ON notificacion(usuario_id, estado);

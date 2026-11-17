@@ -179,4 +179,35 @@ export class RegistroAuditoria {
   ocurridoEn: Date;
 }
 
-export const ENTIDADES_ACCESO = [RolEntity, Licenciatura, Coordinacion, Usuario, AsignacionUsuario, TokenRestauracion, RegistroAuditoria];
+/** Avisos dentro de la aplicación (y por correo cuando haya SMTP). */
+@Entity('notificacion')
+export class Notificacion {
+  @PrimaryGeneratedColumn({ name: 'notificacion_id', type: 'bigint' })
+  id: string;
+
+  @Column({ name: 'usuario_id', type: 'bigint' })
+  usuarioId: string;
+
+  @Column({ type: 'varchar', length: 40 })
+  tipo: string;
+
+  @Column({ length: 180 })
+  titulo: string;
+
+  @Column({ type: 'text' })
+  mensaje: string;
+
+  @Column({ name: 'programada_en', type: 'datetime', nullable: true })
+  programadaEn: Date | null;
+
+  @Column({ name: 'enviada_en', type: 'datetime', nullable: true })
+  enviadaEn: Date | null;
+
+  @Column({ name: 'leida_en', type: 'datetime', nullable: true })
+  leidaEn: Date | null;
+
+  @Column({ type: 'varchar', length: 20 })
+  estado: 'PENDIENTE' | 'ENVIADA' | 'FALLIDA';
+}
+
+export const ENTIDADES_ACCESO = [RolEntity, Licenciatura, Coordinacion, Usuario, AsignacionUsuario, TokenRestauracion, RegistroAuditoria, Notificacion];
