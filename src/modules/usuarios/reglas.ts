@@ -1,5 +1,5 @@
 // HU-02 · Reglas de negocio puras (sin base de datos), fáciles de probar con Jest.
-import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { Rol } from '../../common/enums';
 
 /**
@@ -16,5 +16,9 @@ export const validarAsignacion = (rol: Rol, coordinacionId: string | null | unde
   }
 };
 
-// TODO(HU-02): regla "una cuenta principal de Captura por coordinación + Auxiliar opcional".
-// La base ya lo impide (uq_asignacion_captura_activa); aquí conviene revisarlo antes para dar un mensaje claro.
+/** La coordinación admite como máximo una asignación activa de cada tipo. */
+export const validarDisponibilidadRol = (rol: Rol, yaOcupada: boolean) => {
+  if (!yaOcupada) return;
+  const nombre = rol === Rol.CAPTURA ? 'Captura' : 'Auxiliar';
+  throw new ConflictException(`La coordinación ya tiene una cuenta de ${nombre} activa.`);
+};
