@@ -130,7 +130,117 @@ describe('Acceso (HU-01) y endpoints base de HU-02, HU-04 y HU-15', () => {
       expect(r.body.categorias[0].nombre).toBe('Personal Académico');
     });
 
-    it.todo('POST /ciclos/:id/plan/recomendaciones guarda una recomendación completa');
+    // Flujo completo sobre el plan de Actuaría (BORRADOR en db/datos_desarrollo.sql). Al final se restaura.
+    describe('captura, envío y validación', () => {
+      let planId: string;
+      let cicloId: string;
+      let recomendacionId: string;
+
+      afterAll(async () => {
+        if (recomendacionId) {
+          await dataSource.query('UPDATE observacion_plan SET recomendacion_id = NULL WHERE recomendacion_id = ?', [recomendacionId]);
+          await dataSource.query('DELETE FROM meta WHERE recomendacion_id = ?', [recomendacionId]);
+          await dataSource.query('DELETE FROM accion_recomendacion WHERE recomendacion_id = ?', [recomendacionId]);
+          const [rec] = await dataSource.query('SELECT indicador_id FROM recomendacion WHERE recomendacion_id = ?', [recomendacionId]);
+          await dataSource.query('DELETE FROM recomendacion WHERE recomendacion_id = ?', [recomendacionId]);
+          if (rec) await dataSource.query('DELETE FROM indicador WHERE indicador_id = ? AND NOT EXISTS (SELECT 1 FROM recomendacion r WHERE r.indicador_id = ?)', [rec.indicador_id, rec.indicador_id]);
+        }
+        if (planId) {
+          await dataSource.query('DELETE o FROM observacion_plan o JOIN revision_plan r ON r.revision_plan_id = o.revision_plan_id WHERE r.version_plan_id = ?', [planId]);
+          await dataSource.query('DELETE FROM revision_plan WHERE version_plan_id = ?', [planId]);
+          await dataSource.query("UPDATE version_plan SET estado = 'BORRADOR', enviado_en = NULL, aprobado_en = NULL WHERE version_plan_id = ?", [planId]);
+          await dataSource.query("DELETE FROM notificacion WHERE tipo LIKE 'PLAN\\_%'");
+        }
+      });
+
+      it('GET /planes/mio devuelve el ciclo vigente y el plan en borrador', async () => {
+        const r = await api().get('/api/planes/mio').set('Authorization', `Bearer ${captura}`).expect(200);
+        expect(r.body.ciclo.licenciatura).toBe('Actuaría');
+        expect(r.body.plan.estado).toBe('BORRADOR');
+        planId = r.body.plan.id;
+        cicloId = r.body.ciclo.id;
+        await api().get('/api/planes/mio').set('Authorization', `Bearer ${admin}`).expect(403);
+      });
+
+      it('Guardar borrador acepta solo Categoría, Indicador y Recomendación', async () => {
+        const { body: catalogos } = await api().get('/api/catalogos').set('Authorization', `Bearer ${captura}`).expect(200);
+        const r = await api().post(`/api/ciclos/${cicloId}/plan/recomendaciones`).set('Authorization', `Bearer ${captura}`).send({
+          categoriaId: catalogos.categorias[2].id,
+          indicador: 'Indicador de prueba e2e',
+          descripcion: 'Recomendación de prueba e2e',
+        }).expect(201);
+        const nueva = r.body.recomendacionesDetalle.find((x: { descripcion: string }) => x.descripcion === 'Recomendación de prueba e2e');
+        expect(nueva).toBeDefined();
+        expect(nueva.indicador).toBe('Indicador de prueba e2e');
+        recomendacionId = nueva.id;
+      });
+
+      it('Enviar a validación exige recomendaciones completas', async () => {
+        const r = await api().post(`/api/planes/${planId}/enviar`).set('Authorization', `Bearer ${captura}`).expect(400);
+        expect(r.body.message).toContain('área responsable');
+      });
+
+      it('completa la recomendación, configura sus metas y la envía', async () => {
+        const { body: catalogos } = await api().get('/api/catalogos').set('Authorization', `Bearer ${captura}`).expect(200);
+        const r = await api().put(`/api/recomendaciones/${recomendacionId}`).set('Authorization', `Bearer ${captura}`).send({
+          categoriaId: catalogos.categorias[2].id,
+          indicador: 'Indicador de prueba e2e',
+          descripcion: 'Recomendación de prueba e2e',
+          acciones: ['Acción de prueba'],
+          metas: ['Meta 1', 'Meta 2'],
+          areaResponsable: 'Coordinación de Actuaría',
+          fechaCumplimiento: '2028-06-30',
+        }).expect(200);
+        const rec = r.body.recomendacionesDetalle.find((x: { id: string }) => x.id === recomendacionId);
+        expect(rec.metas).toHaveLength(2);
+
+        await api().put(`/api/recomendaciones/${recomendacionId}/metas`).set('Authorization', `Bearer ${captura}`).send({
+          metas: [
+            { id: rec.metas[0].id, descripcion: 'Meta 1', fechaCompromiso: '2027-06-30', porcentajeEsperado: 50 },
+            { id: rec.metas[1].id, descripcion: 'Meta 2', fechaCompromiso: '2029-01-01', porcentajeEsperado: 80 },
+          ],
+        }).expect(400); // posterior a la fecha de cumplimiento
+
+        const metas = await api().put(`/api/recomendaciones/${recomendacionId}/metas`).set('Authorization', `Bearer ${captura}`).send({
+          metas: [
+            { id: rec.metas[0].id, descripcion: 'Meta 1', fechaCompromiso: '2027-06-30', porcentajeEsperado: 50 },
+            { id: rec.metas[1].id, descripcion: 'Meta 2', fechaCompromiso: '2028-01-15', porcentajeEsperado: 80 },
+          ],
+        }).expect(200);
+        const configurada = metas.body.recomendacionesDetalle.find((x: { id: string }) => x.id === recomendacionId);
+        expect(configurada.metas.map((m: { porcentajeEsperado: number }) => m.porcentajeEsperado)).toEqual([50, 80]);
+
+        const enviado = await api().post(`/api/planes/${planId}/enviar`).set('Authorization', `Bearer ${captura}`).expect(200);
+        expect(enviado.body.estado).toBe('EN_REVISION');
+        await api().post(`/api/ciclos/${cicloId}/plan/recomendaciones`).set('Authorization', `Bearer ${captura}`).send({
+          categoriaId: catalogos.categorias[0].id, indicador: 'No debe guardarse', descripcion: 'No debe guardarse',
+        }).expect(409);
+      });
+
+      it('el Administrador lo ve, lo devuelve con observaciones y luego lo valida', async () => {
+        const lista = await api().get('/api/planes').set('Authorization', `Bearer ${admin}`).expect(200);
+        expect(lista.body.find((p: { id: string }) => p.id === planId).estado).toBe('EN_REVISION');
+        await api().post(`/api/planes/${planId}/validar`).set('Authorization', `Bearer ${captura}`).expect(403);
+
+        const devuelto = await api().post(`/api/planes/${planId}/devolver`).set('Authorization', `Bearer ${admin}`).send({
+          motivo: 'Revisar la redacción',
+          observaciones: [{ recomendacionId, comentario: 'Precisa la meta 2' }],
+        }).expect(200);
+        expect(devuelto.body.estado).toBe('DEVUELTO');
+
+        const mio = await api().get('/api/planes/mio').set('Authorization', `Bearer ${captura}`).expect(200);
+        expect(mio.body.plan.ultimaRevision.comentario).toBe('Revisar la redacción');
+        expect(mio.body.plan.recomendacionesDetalle.find((x: { id: string }) => x.id === recomendacionId).observacion).toBe('Precisa la meta 2');
+
+        const avisos = await api().get('/api/notificaciones').set('Authorization', `Bearer ${captura}`).expect(200);
+        expect(avisos.body[0].tipo).toBe('DEVOLUCION');
+
+        await api().post(`/api/planes/${planId}/enviar`).set('Authorization', `Bearer ${captura}`).expect(200);
+        const validado = await api().post(`/api/planes/${planId}/validar`).set('Authorization', `Bearer ${admin}`).send({}).expect(200);
+        expect(validado.body.estado).toBe('APROBADO');
+        expect(validado.body.editable).toBe(false);
+      });
+    });
   });
 
   describe('HU-15 · resumen de atención', () => {

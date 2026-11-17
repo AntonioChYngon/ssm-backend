@@ -34,8 +34,27 @@ Prefijo `/api`. Todas piden `Authorization: Bearer <token>`, salvo las públicas
 | `GET /auth/me` | cualquier sesión | HU-01 |
 | `POST /auth/cambiar-contrasena` | cualquier sesión | HU-02 |
 | `GET /auditoria?entidad&desde&hasta&limite` | Administrador | HU-03 |
+| `GET /catalogos` | cualquier sesión | HU-04 |
+| `GET /planes` | Administrador: todos · Captura/Auxiliar: su licenciatura | HU-04 |
+| `GET /planes/mio` | Captura, Auxiliar | HU-04 |
+| `GET /planes/:id` | Administrador o la licenciatura del plan | HU-04 |
+| `POST /ciclos/:cicloId/plan/recomendaciones` (Guardar borrador) | Captura, Auxiliar | HU-04 |
+| `PUT /recomendaciones/:id` · `DELETE /recomendaciones/:id` | Captura, Auxiliar | HU-04 |
+| `PUT /recomendaciones/:id/metas` (Configuración de Metas) | Captura, Auxiliar | HU-12 |
+| `POST /planes/:id/enviar` | Captura, Auxiliar | HU-04 |
+| `POST /planes/:id/validar` · `POST /planes/:id/devolver` | Administrador | HU-05 |
+| `GET /notificaciones` · `PATCH /notificaciones/:id/leida` | cualquier sesión | HU-10 |
 
-El resto de los módulos (planes, informes, evidencias, notificaciones, reportes) se está migrando al esquema del equipo; ver `src/modules/_por-migrar/LEEME.md`.
+El resto de los módulos (informes, evidencias, reportes) se está migrando al esquema del equipo; ver `src/modules/_por-migrar/LEEME.md`.
+
+## Reglas del Plan de Mejora
+
+- **Estados** (`version_plan.estado`): `BORRADOR` → `EN_REVISION` (En validación) → `APROBADO` (Validado) o `DEVUELTO`. Solo se edita en Borrador o Devuelto; al devolver se corrige la misma versión.
+- **Guardar borrador:** exige Categoría, Indicador y Recomendación. **Enviar a validación:** cada recomendación necesita acciones, al menos una meta, área responsable y fecha de cumplimiento dentro de la vigencia del ciclo.
+- **Indicador y Área responsable** son texto abierto. El indicador se reutiliza si en el plan ya existe uno con la misma categoría y texto.
+- **Metas** (antes "hitos"): se capturan con la recomendación y se configuran con fecha compromiso y % esperado (1–99, fechas ascendentes, sin pasar la fecha de cumplimiento). `hito_avance` queda como tabla heredada.
+- **Avisos:** al enviar se notifica a los Administradores; al validar o devolver, a Captura y Auxiliar de la licenciatura.
+- Cambios de esquema sobre una base existente: `db/migraciones/2026-11-17_plan_mejora.sql`.
 
 ## Reglas del inicio de sesión
 
@@ -52,4 +71,4 @@ El resto de los módulos (planes, informes, evidencias, notificaciones, reportes
 
 - Envío de correos (enlace de recuperación y avisos). Se necesita el SMTP institucional.
 - Migrar los módulos de `_por-migrar` al esquema del equipo.
-- Decisiones abiertas del equipo: aceptar o no `@unam.mx`, descripción del hito, cómo se marca una observación como atendida y preferencia de canal de notificación.
+- Decisiones abiertas del equipo: aceptar o no `@unam.mx`, cómo se marca una observación como atendida y preferencia de canal de notificación.

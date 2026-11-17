@@ -104,7 +104,18 @@ INSERT INTO recomendacion_area (recomendacion_id, area_id)
 SELECT r.recomendacion_id, a.area_id FROM recomendacion r
 JOIN area_responsable a ON a.nombre = 'Secretaría Académica';
 
--- ---------- Hitos intermedios (HU-12) para los planes aprobados ----------
+-- Área responsable como texto abierto (Plan de Mejora).
+UPDATE recomendacion SET area_responsable = 'Secretaría Académica' WHERE area_responsable IS NULL;
+
+-- Metas configuradas (fecha compromiso y % esperado) para los planes aprobados.
+UPDATE meta m
+JOIN recomendacion r ON r.recomendacion_id = m.recomendacion_id
+JOIN indicador i ON i.indicador_id = r.indicador_id
+JOIN version_plan vp ON vp.version_plan_id = i.version_plan_id
+SET m.fecha_compromiso = '2026-06-30', m.porcentaje_esperado = 50.00
+WHERE vp.estado = 'APROBADO';
+
+-- ---------- Hitos intermedios (legado: hito_avance; el Plan de Mejora usa meta) ----------
 INSERT INTO hito_avance (recomendacion_id, fecha_hito, porcentaje_esperado, creado_por)
 SELECT r.recomendacion_id, '2026-06-30', 50.00, @admin
 FROM recomendacion r

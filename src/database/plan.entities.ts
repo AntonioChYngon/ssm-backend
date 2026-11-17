@@ -168,8 +168,13 @@ export class Recomendacion {
   @Column({ type: 'text' })
   descripcion: string;
 
-  @Column({ name: 'fecha_cumplimiento', type: 'date' })
-  fechaCumplimiento: string;
+  /** "Área responsable": texto abierto. */
+  @Column({ name: 'area_responsable', type: 'varchar', length: 250, nullable: true })
+  areaResponsable: string | null;
+
+  /** Opcional en BORRADOR; obligatoria para enviar a validación. */
+  @Column({ name: 'fecha_cumplimiento', type: 'date', nullable: true })
+  fechaCumplimiento: string | null;
 
   /** Ej. "Semestre 2026-1". La fecha real sirve para alertas. */
   @Column({ name: 'etiqueta_fecha', type: 'varchar', length: 80, nullable: true })
@@ -187,6 +192,7 @@ export class Recomendacion {
   @OneToMany(() => Meta, (m) => m.recomendacion)
   metas: Meta[];
 
+  /** Catálogo de áreas (legado). La captura usa areaResponsable. */
   @ManyToMany(() => AreaResponsable)
   @JoinTable({
     name: 'recomendacion_area',
@@ -230,10 +236,18 @@ export class Meta {
   @Column({ type: 'text' })
   descripcion: string;
 
+  /** Configuración de Metas: fecha compromiso (YYYY-MM-DD) y % esperado a esa fecha. */
+  @Column({ name: 'fecha_compromiso', type: 'date', nullable: true })
+  fechaCompromiso: string | null;
+
+  @Column({ name: 'porcentaje_esperado', type: 'decimal', precision: 5, scale: 2, nullable: true, transformer: decimal })
+  porcentajeEsperado: number | null;
+
   @Column({ type: 'int' })
   orden: number;
 }
 
+/** Legado: el Plan de Mejora ya usa Meta.fechaCompromiso / porcentajeEsperado. Se conserva por los datos existentes. */
 @Entity('hito_avance')
 export class HitoAvance {
   @PrimaryGeneratedColumn({ name: 'hito_id', type: 'bigint' })
@@ -250,6 +264,56 @@ export class HitoAvance {
 
   @Column({ name: 'creado_por', type: 'bigint' })
   creadoPor: string;
+}
+
+@Entity('revision_plan')
+export class RevisionPlan {
+  @PrimaryGeneratedColumn({ name: 'revision_plan_id', type: 'bigint' })
+  id: string;
+
+  @Column({ name: 'version_plan_id', type: 'bigint' })
+  versionPlanId: string;
+
+  @Column({ name: 'revisor_id', type: 'bigint' })
+  revisorId: string;
+
+  @ManyToOne(() => Usuario)
+  @JoinColumn({ name: 'revisor_id' })
+  revisor: Usuario;
+
+  @Column({ type: 'varchar', length: 20 })
+  decision: 'APROBADO' | 'DEVUELTO';
+
+  @Column({ name: 'comentario_general', type: 'text', nullable: true })
+  comentarioGeneral: string | null;
+
+  @Column({ name: 'revisado_en', type: 'datetime', insert: false, update: false })
+  revisadoEn: Date;
+
+  @OneToMany(() => ObservacionPlan, (o) => o.revision)
+  observaciones: ObservacionPlan[];
+}
+
+@Entity('observacion_plan')
+export class ObservacionPlan {
+  @PrimaryGeneratedColumn({ name: 'observacion_plan_id', type: 'bigint' })
+  id: string;
+
+  @Column({ name: 'revision_plan_id', type: 'bigint' })
+  revisionPlanId: string;
+
+  @ManyToOne(() => RevisionPlan, (r) => r.observaciones)
+  @JoinColumn({ name: 'revision_plan_id' })
+  revision: RevisionPlan;
+
+  @Column({ name: 'recomendacion_id', type: 'bigint', nullable: true })
+  recomendacionId: string | null;
+
+  @Column({ type: 'text' })
+  comentario: string;
+
+  @Column({ name: 'creada_en', type: 'datetime', insert: false, update: false })
+  creadaEn: Date;
 }
 
 @Entity('informe')
@@ -344,6 +408,8 @@ export const ENTIDADES_PLAN = [
   AccionRecomendacion,
   Meta,
   HitoAvance,
+  RevisionPlan,
+  ObservacionPlan,
   Informe,
   VersionInforme,
   AvanceRecomendacion,
