@@ -11,6 +11,7 @@ import {
   validarFechaCumplimiento,
   validarId,
   validarMetaMedible,
+  validarVigencia,
 } from './reglas';
 
 describe('HU-04 · validarFechaCumplimiento', () => {
@@ -27,6 +28,7 @@ describe('HU-04 · validarFechaCumplimiento', () => {
     expect(() => validarFechaCumplimiento('2030-01-01', inicio, fin)).toThrow(BadRequestException);
     expect(() => validarFechaCumplimiento('2024-11-27', inicio, fin)).toThrow(BadRequestException);
     expect(() => validarFechaCumplimiento('30/06/2026', inicio, fin)).toThrow(BadRequestException);
+    expect(() => validarFechaCumplimiento('2026-02-30', inicio, fin)).toThrow(BadRequestException);
   });
 });
 
@@ -99,5 +101,22 @@ describe('HU-04 · metas medibles (en porcentaje)', () => {
     expect(() => validarMetaMedible('Mejorar la titulación')).toThrow(BadRequestException);
     expect(() => validarMetaMedible('Capacitar a 30 profesores')).toThrow(BadRequestException);
     expect(() => validarMetaMedible('Superar el 120% de la matrícula')).toThrow(BadRequestException);
+  });
+});
+
+describe('HU-04 · vigencia capturada por la Administradora', () => {
+  const ok = { fechaEmision: '2024-11-28', vigenciaInicio: '2024-11-28', vigenciaFin: '2029-11-28' };
+
+  it('acepta una vigencia de hasta 5 años', () => {
+    expect(() => validarVigencia(ok)).not.toThrow();
+    expect(() => validarVigencia({ ...ok, vigenciaFin: '2027-06-30' })).not.toThrow();
+  });
+
+  it('rechaza fin antes del inicio, más de 5 años, fechas inválidas y emisión posterior al fin', () => {
+    expect(() => validarVigencia({ ...ok, vigenciaFin: '2024-11-28' })).toThrow(BadRequestException);
+    expect(() => validarVigencia({ ...ok, vigenciaFin: '2029-11-29' })).toThrow(BadRequestException);
+    expect(() => validarVigencia({ ...ok, vigenciaInicio: '2024-02-31' })).toThrow(BadRequestException);
+    expect(() => validarVigencia({ ...ok, vigenciaInicio: '' })).toThrow(BadRequestException);
+    expect(() => validarVigencia({ ...ok, fechaEmision: '2030-01-01' })).toThrow(BadRequestException);
   });
 });

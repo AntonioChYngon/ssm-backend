@@ -12,6 +12,8 @@ Si una decisión cambia, edita su sección y anota la nueva fecha; no borres el 
 | D4.2 | Observación "atendida" | Decidida; esquema listo | HU-05, HU-08 |
 | D4.3 | Canal de notificación | Decidida; esquema listo | HU-10, HU-11, HU-05 |
 | D5 | Corregir un plan DEVUELTO | Decidida | HU-04, HU-05 |
+| D6 | Arranque en ceros y catálogo base | Decidida e implementada | Todas |
+| D7 | Vigencia capturada por la Administradora | Decidida e implementada | HU-04, HU-06 |
 
 ## D1 · Correos `@unam.mx`
 Se mantienen solo `@acatlan.unam.mx` y `@pcpuma.acatlan.unam.mx`. Se revisará en otra iteración.
@@ -56,6 +58,26 @@ Con `db/datos_desarrollo.sql` los resultados esperados no cambian (DER 1/1/2, EC
 ## D5 · Corregir un plan DEVUELTO (HU-04, HU-05)
 Se corrige **sobre la misma versión** (sin crear una nueva). Así los ids de las recomendaciones no cambian y cada observación
 sigue apuntando a la recomendación que corrige. La trazabilidad queda en `revision_plan`, `observacion_plan` y la auditoría.
+
+## D6 · Arranque en ceros y catálogo base
+- El sistema arranca **sin datos simulados**: sin ciclos, planes, informes, notificaciones ni bitácora.
+  Solo existen los usuarios registrados y los catálogos indispensables.
+- Catálogos reales en `db/catalogos_base.sql` (los carga siempre `npm run seed`): 20 licenciaturas y sus
+  coordinaciones, organismos acreditadores o IEVA y áreas responsables. Las 10 categorías y los roles vienen del esquema.
+- **Pendiente con el cliente:** validar los nombres de áreas y organismos con la Unidad de Planeación.
+- `db/datos_desarrollo.sql` (ficticio) solo se carga con `SEED_DATOS_DESARROLLO=true`. Está apagado en `.env.example`
+  y encendido en el CI, porque las pruebas de integración de HU-04 y HU-15 lo usan.
+- En el frontend se eliminó `mock-data.ts`; las vistas muestran estados vacíos hasta que su historia se conecte al backend.
+
+## D7 · Vigencia capturada por la Administradora (HU-04, HU-06)
+- La vigencia **no tiene valor por defecto ni se calcula sola**. La Administradora registra cada ciclo en
+  *Planes de mejora → Registrar ciclo*: licenciatura, organismo o IEVA, fecha de emisión de la constancia,
+  inicio y fin de la vigencia y, opcionalmente, la referencia de la constancia.
+- Reglas: fechas reales, el fin después del inicio, **máximo 5 años**, emisión antes del fin y un solo ciclo
+  VIGENTE por licenciatura.
+- Se puede corregir mientras la coordinación no haya capturado nada; después, las fechas de cumplimiento ya dependen de ella.
+- Sin ciclo vigente, la coordinación ve en *Plan de mejora* un aviso en lugar del formulario.
+- Endpoints (solo Administradora): `GET /ciclos`, `POST /ciclos`, `PATCH /ciclos/:cicloId`. `GET /catalogos` incluye `licenciaturas`.
 
 ## Bases de datos existentes
 Las columnas nuevas ya están en `db/ssm_mariadb.sql`. Si tu base es anterior al 16/11/2026, recréala

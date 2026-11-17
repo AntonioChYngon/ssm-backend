@@ -40,7 +40,7 @@ git grep "TODO(HU-02)"     # o HU-04, HU-15
 - [ ] `GET /reportes/atencion?licenciaturaId=`: conteo por licenciatura con `contarPorEstatus()`.
 - [x] Decidido (D3): cuenta el **último informe capturado**, en cualquier estado.
 - [ ] Frontend: conectar `/admin/reportes/atencion` a `obtenerResumenAtencion()` y el filtro por licenciatura.
-- [ ] Pruebas: con los datos de desarrollo, Derecho debe dar 1 / 1 / 2 y Economía 2 / 1 / 0.
+- [ ] Pruebas: con los datos de desarrollo (`SEED_DATOS_DESARROLLO=true`), Derecho debe dar 1 / 1 / 2 y Economía 2 / 1 / 0.
 
 ## 2. Preparar tu computadora (una sola vez)
 
@@ -57,7 +57,7 @@ En `.env` pon las mismas contraseñas en `DB_PASSWORD` y `DB_ROOT_PASSWORD` que 
 ```bash
 podman compose up -d db correo        # MariaDB con el esquema + buzón de correo de prueba
 npm install
-npm run seed                          # usuarios de prueba y datos de desarrollo
+npm run seed                          # catálogos base y usuarios; con SEED_DATOS_DESARROLLO=true, también datos ficticios
 npm run start:dev                     # API en http://localhost:3001/api · Swagger en /api/docs
 ```
 
@@ -80,7 +80,7 @@ npm run start:dev                     # API en http://localhost:3001/api · Swag
 
 ### ¿Solo frontend?
 
-No necesitas el backend. En `ssm-frontend`, crea `.env.local` con `NEXT_PUBLIC_USE_MOCKS=true` y corre `npm run dev`. Las funciones de `src/lib/api.ts` responden con datos de ejemplo.
+No necesitas el backend. En `ssm-frontend`, crea `.env.local` con `NEXT_PUBLIC_USE_MOCKS=true` y corre `npm run dev`. El modo demostración arranca en ceros (solo catálogos) y guarda lo que captures en el navegador.
 
 ## 3. Cómo saber si tu código funciona
 

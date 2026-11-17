@@ -17,7 +17,7 @@ API del **Sistema de Seguimiento de Mejora (SSM)** de la FES Acatlán, UNAM. Pro
 ```bash
 cp .env.example .env     # DB_PASSWORD de ssm_app, JWT_SECRET y contraseñas SEED_*
 npm install
-npm run seed             # Actuaría + su coordinación, un Administrador y un usuario Captura
+npm run seed             # catálogos base (licenciaturas, áreas, organismos), un Administrador y un Captura
 npm run start:dev        # http://localhost:3001/api  ·  Swagger en /api/docs
 npm test                 # validación de dominio y contraseña
 ```

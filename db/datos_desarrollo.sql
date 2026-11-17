@@ -1,7 +1,9 @@
 -- =====================================================================
 -- SSM · Datos de DESARROLLO (ficticios). Nunca cargar en producción.
--- Los ejecuta `npm run seed` cuando SEED_DATOS_DESARROLLO=true y la tabla version_plan está vacía.
--- Requiere: esquema (ssm_mariadb.sql) + usuarios del seed (Administrador y Captura de Actuaría).
+-- Los ejecuta `npm run seed` SOLO si SEED_DATOS_DESARROLLO=true y la tabla version_plan está vacía.
+-- Por defecto está apagado: el sistema arranca en ceros (solo catálogos y usuarios). El CI sí los carga
+-- porque las pruebas de integración de HU-04 y HU-15 los usan.
+-- Requiere: esquema (ssm_mariadb.sql) + db/catalogos_base.sql + usuarios del seed.
 --
 -- Qué deja listo para cada historia:
 --   HU-02  Varias coordinaciones sin cuentas, para dar de alta Captura y Auxiliar.
@@ -17,28 +19,10 @@ SET @admin := (
   ORDER BY a.asignacion_id LIMIT 1
 );
 
--- ---------- Catálogos ----------
-INSERT IGNORE INTO licenciatura (clave, nombre, modalidad) VALUES
-  ('ACT', 'Actuaría', 'Escolarizada'),
-  ('DER', 'Derecho', 'Escolarizada'),
-  ('ECO', 'Economía', 'Escolarizada'),
-  ('ARQ', 'Arquitectura', 'Escolarizada'),
-  ('PED', 'Pedagogía', 'Abierta y a Distancia');
-
-INSERT IGNORE INTO coordinacion (licenciatura_id, nombre)
-SELECT licenciatura_id, CONCAT('Coordinación de ', nombre) FROM licenciatura;
-
+-- ---------- Organismos ficticios (las licenciaturas y áreas vienen de db/catalogos_base.sql) ----------
 INSERT IGNORE INTO organismo_acreditador (nombre, siglas) VALUES
   ('Organismo Acreditador de Prueba A', 'OAP-A'),
   ('Organismo Acreditador de Prueba B', 'OAP-B');
-
-INSERT IGNORE INTO area_responsable (nombre) VALUES
-  ('Secretaría General'),
-  ('Secretaría Académica'),
-  ('Departamento de Servicios Escolares'),
-  ('Biblioteca'),
-  ('Centro de Cómputo'),
-  ('Unidad de Planeación');
 
 -- ---------- Ciclos de acreditación vigentes (28/11/2024 – 28/11/2029) ----------
 INSERT INTO ciclo_acreditacion (licenciatura_id, organismo_id, fecha_emision, vigencia_inicio, vigencia_fin, referencia_constancia)
@@ -102,7 +86,7 @@ SELECT recomendacion_id, 'Cumplir el 100% de las actividades programadas antes d
 
 INSERT INTO recomendacion_area (recomendacion_id, area_id)
 SELECT r.recomendacion_id, a.area_id FROM recomendacion r
-JOIN area_responsable a ON a.nombre = 'Secretaría Académica';
+JOIN area_responsable a ON a.nombre = 'Secretaría General';
 
 -- ---------- Hitos intermedios (HU-12) para los planes aprobados ----------
 INSERT INTO hito_avance (recomendacion_id, descripcion, fecha_hito, porcentaje_esperado, creado_por)

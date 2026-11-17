@@ -1,6 +1,8 @@
-// Usuarios de prueba y datos de desarrollo, respetando las reglas del esquema del equipo.
-// 1. Crea (si no existen): licenciatura Actuaría + su coordinación, un Administrador y un Captura.
-// 2. Si SEED_DATOS_DESARROLLO=true y aún no hay planes, carga db/datos_desarrollo.sql.
+// Catálogos, usuarios iniciales y (opcional) datos de desarrollo, respetando las reglas del esquema del equipo.
+// 1. Carga db/catalogos_base.sql: licenciaturas, coordinaciones, organismos y áreas reales.
+// 2. Crea (si no existen) un Administrador y un Captura de Actuaría.
+// 3. Solo si SEED_DATOS_DESARROLLO=true y aún no hay planes, carga db/datos_desarrollo.sql (ficticios).
+//    Sin esa variable el sistema arranca en ceros: sin ciclos, planes ni informes.
 // Uso:  npm run seed   (lee SEED_* del archivo .env). Se puede correr varias veces sin duplicar.
 import 'reflect-metadata';
 import 'dotenv/config';
@@ -23,6 +25,8 @@ const leerUsuario = (prefijo: string, rol: Rol, nombre: string, apellido: string
   return { correo, contrasena, nombre, apellido, rol };
 };
 
+const leerSql = (archivo: string) => readFileSync(join(__dirname, '..', '..', 'db', archivo), 'utf8');
+
 const main = async () => {
   const admin = leerUsuario('SEED_ADMIN', Rol.ADMINISTRADOR, 'Administración', 'SSM');
   const captura = leerUsuario('SEED_CAPTURA', Rol.CAPTURA, 'Captura', 'Actuaría');
@@ -43,6 +47,9 @@ const main = async () => {
     bigNumberStrings: true,
   });
   await ds.initialize();
+
+  await ds.transaction((tx) => tx.query(leerSql('catalogos_base.sql')));
+  console.log('✔ Catálogos base: licenciaturas, coordinaciones, organismos y áreas responsables.');
 
   await ds.transaction(async (tx) => {
     let licenciatura = await tx.findOneBy(Licenciatura, { clave: 'ACT' });
@@ -76,8 +83,7 @@ const main = async () => {
     if (Number(total) > 0) {
       console.log('• Datos de desarrollo: ya existen planes, no se cargan de nuevo.');
     } else {
-      const sql = readFileSync(join(__dirname, '..', '..', 'db', 'datos_desarrollo.sql'), 'utf8');
-      await ds.transaction((tx) => tx.query(sql));
+      await ds.transaction((tx) => tx.query(leerSql('datos_desarrollo.sql')));
       console.log('✔ Datos de desarrollo cargados (planes, recomendaciones y avances de prueba).');
     }
   }

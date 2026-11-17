@@ -125,6 +125,53 @@ describe('Acceso (HU-01) y endpoints base de HU-02, HU-04 y HU-15', () => {
     });
   });
 
+  describe('HU-04 · ciclos de acreditación (vigencia manual)', () => {
+    type Ciclo = { id: string; licenciatura: { id: string }; estado: string; plan: unknown };
+    const vigencia = { fechaEmision: '2025-01-15', vigenciaInicio: '2025-01-15', vigenciaFin: '2030-01-15' };
+    let organismoId: string;
+    let libre: string | undefined;
+
+    beforeAll(async () => {
+      const catalogos = await api().get('/api/catalogos').set('Authorization', `Bearer ${admin}`).expect(200);
+      organismoId = catalogos.body.organismos[0].id;
+      const ciclos = await api().get('/api/ciclos').set('Authorization', `Bearer ${admin}`).expect(200);
+      const ocupadas = new Set((ciclos.body as Ciclo[]).filter((c) => c.estado === 'VIGENTE').map((c) => c.licenciatura.id));
+      libre = (catalogos.body.licenciaturas as { id: string }[]).map((l) => l.id).find((id) => !ocupadas.has(id));
+    });
+
+    it('solo la Administradora ve y registra ciclos', async () => {
+      await api().get('/api/ciclos').set('Authorization', `Bearer ${captura}`).expect(403);
+      await api().post('/api/ciclos').set('Authorization', `Bearer ${captura}`).send({ ...vigencia, licenciaturaId: '1', organismoId }).expect(403);
+    });
+
+    it('rechaza vigencias inválidas o mayores a 5 años', async () => {
+      const enviar = (datos: object) => api().post('/api/ciclos').set('Authorization', `Bearer ${admin}`).send({ licenciaturaId: libre ?? '1', organismoId, ...datos });
+      await enviar({ ...vigencia, vigenciaFin: '2025-01-15' }).expect(400);
+      await enviar({ ...vigencia, vigenciaFin: '2030-01-16' }).expect(400);
+      await enviar({ ...vigencia, vigenciaInicio: undefined }).expect(400);
+    });
+
+    it('registra la vigencia escrita por la Administradora, sin valores por defecto, y la deja corregir', async () => {
+      if (!libre) return; // Todas las licenciaturas ya tienen ciclo en esta base local.
+      const creado = await api().post('/api/ciclos').set('Authorization', `Bearer ${admin}`).send({ ...vigencia, licenciaturaId: libre, organismoId }).expect(201);
+      expect(creado.body).toMatchObject({ ...vigencia, estado: 'VIGENTE', plan: null });
+
+      await api().post('/api/ciclos').set('Authorization', `Bearer ${admin}`).send({ ...vigencia, licenciaturaId: libre, organismoId }).expect(409);
+
+      const corregido = await api().patch(`/api/ciclos/${creado.body.id}`).set('Authorization', `Bearer ${admin}`)
+        .send({ ...vigencia, vigenciaFin: '2029-12-31', licenciaturaId: libre, organismoId }).expect(200);
+      expect(corregido.body.vigenciaFin).toBe('2029-12-31');
+    });
+
+    it('no deja cambiar la vigencia de un ciclo que ya tiene plan capturado', async () => {
+      const plan = await api().get('/api/mi-plan').set('Authorization', `Bearer ${captura}`).expect(200);
+      const ciclos = await api().get('/api/ciclos').set('Authorization', `Bearer ${admin}`).expect(200);
+      const actuaria = (ciclos.body as Ciclo[]).find((c) => c.id === plan.body.cicloId)!;
+      await api().patch(`/api/ciclos/${actuaria.id}`).set('Authorization', `Bearer ${admin}`)
+        .send({ ...vigencia, licenciaturaId: actuaria.licenciatura.id, organismoId }).expect(409);
+    });
+  });
+
   describe('HU-15 · resumen de atención', () => {
     it('solo el Administrador puede consultarlo', async () => {
       await api().get('/api/reportes/atencion').set('Authorization', `Bearer ${captura}`).expect(403);

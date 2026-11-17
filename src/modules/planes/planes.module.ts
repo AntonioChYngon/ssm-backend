@@ -8,7 +8,7 @@ import { ArrayMaxSize, ArrayMinSize, IsArray, IsDateString, IsOptional, IsString
 import { DataSource, EntityManager, In, Repository } from 'typeorm';
 import { Roles, UsuarioActual, UsuarioToken, verificarCoordinacion } from '../../common/auth';
 import { EstadoVersion, Rol } from '../../common/enums';
-import { Coordinacion } from '../../database/entities';
+import { Coordinacion, Licenciatura } from '../../database/entities';
 import {
   AccionRecomendacion,
   AreaResponsable,
@@ -21,6 +21,7 @@ import {
   VersionPlan,
 } from '../../database/plan.entities';
 import { AuditoriaService } from '../auditoria/auditoria.module';
+import { CiclosController, CiclosService } from './ciclos';
 import {
   esEditable,
   exigirPlanEditable,
@@ -37,7 +38,7 @@ import {
 // ---------- Contrato (debe coincidir con ssm-frontend/src/lib/types.ts) ----------
 
 export type ItemCatalogo = { id: string; nombre: string };
-export type Catalogos = { categorias: ItemCatalogo[]; areas: ItemCatalogo[]; organismos: ItemCatalogo[] };
+export type Catalogos = { categorias: ItemCatalogo[]; areas: ItemCatalogo[]; organismos: ItemCatalogo[]; licenciaturas: ItemCatalogo[] };
 
 export class NuevaRecomendacionDto {
   @IsString() categoriaId: string;
@@ -125,19 +126,26 @@ export class PlanesService {
     @InjectRepository(Categoria) private readonly categorias: Repository<Categoria>,
     @InjectRepository(AreaResponsable) private readonly areas: Repository<AreaResponsable>,
     @InjectRepository(OrganismoAcreditador) private readonly organismos: Repository<OrganismoAcreditador>,
+    @InjectRepository(Licenciatura) private readonly licenciaturas: Repository<Licenciatura>,
     @InjectDataSource() private readonly db: DataSource,
     private readonly auditoria: AuditoriaService,
   ) {}
 
   /** Catálogos para los selectores del formulario. */
   async catalogos(): Promise<Catalogos> {
-    const [categorias, areas, organismos] = await Promise.all([
+    const [categorias, areas, organismos, licenciaturas] = await Promise.all([
       this.categorias.find({ where: { activa: true }, order: { orden: 'ASC' } }),
       this.areas.find({ where: { activa: true }, order: { nombre: 'ASC' } }),
       this.organismos.find({ where: { activo: true }, order: { nombre: 'ASC' } }),
+      this.licenciaturas.find({ where: { activa: true }, order: { nombre: 'ASC' } }),
     ]);
     const item = (x: { id: string; nombre: string }) => ({ id: x.id, nombre: x.nombre });
-    return { categorias: categorias.map(item), areas: areas.map(item), organismos: organismos.map(item) };
+    return {
+      categorias: categorias.map(item),
+      areas: areas.map(item),
+      organismos: organismos.map(item),
+      licenciaturas: licenciaturas.map(item),
+    };
   }
 
   /** Plan del ciclo VIGENTE de la licenciatura del usuario (Captura y Auxiliar). */
@@ -147,7 +155,9 @@ export class PlanesService {
       where: { licenciaturaId: usuario.licenciaturaId, estado: 'VIGENTE' },
       order: { vigenciaInicio: 'DESC' },
     });
-    if (!ciclo) throw new NotFoundException('Tu licenciatura no tiene un ciclo de acreditación vigente.');
+    if (!ciclo) {
+      throw new NotFoundException('La Unidad de Planeación aún no registra el ciclo de acreditación (vigencia) de tu licenciatura.');
+    }
     return this.planDelCiclo(usuario, ciclo.id);
   }
 
@@ -333,8 +343,8 @@ export class PlanesController {
 }
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Categoria, AreaResponsable, OrganismoAcreditador])],
-  controllers: [PlanesController],
-  providers: [PlanesService],
+  imports: [TypeOrmModule.forFeature([Categoria, AreaResponsable, OrganismoAcreditador, Licenciatura])],
+  controllers: [PlanesController, CiclosController],
+  providers: [PlanesService, CiclosService],
 })
 export class PlanesModule {}

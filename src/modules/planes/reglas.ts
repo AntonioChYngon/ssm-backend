@@ -2,9 +2,37 @@
 import { BadRequestException, ConflictException } from '@nestjs/common';
 import { EstadoVersion } from '../../common/enums';
 
+/** AAAA-MM-DD y además una fecha real del calendario (rechaza 2026-02-30). */
+export const esFechaValida = (fecha: string) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return false;
+  const d = new Date(`${fecha}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === fecha;
+};
+
+/** Una acreditación dura como máximo 5 años (requerimiento del cliente). */
+export const VIGENCIA_MAXIMA_ANIOS = 5;
+
+const sumarAnios = (fecha: string, anios: number) => `${Number(fecha.slice(0, 4)) + anios}${fecha.slice(4)}`;
+
+/**
+ * Vigencia capturada a mano por la Administradora (sin valores por defecto):
+ * fechas reales, fin posterior al inicio, máximo 5 años y emisión de la constancia antes del fin.
+ */
+export const validarVigencia = (fechas: { fechaEmision: string; vigenciaInicio: string; vigenciaFin: string }) => {
+  const { fechaEmision, vigenciaInicio, vigenciaFin } = fechas;
+  if (![fechaEmision, vigenciaInicio, vigenciaFin].every(esFechaValida)) {
+    throw new BadRequestException('Escribe fechas válidas (AAAA-MM-DD) para la emisión y la vigencia.');
+  }
+  if (vigenciaFin <= vigenciaInicio) throw new BadRequestException('La vigencia debe terminar después de la fecha de inicio.');
+  if (vigenciaFin > sumarAnios(vigenciaInicio, VIGENCIA_MAXIMA_ANIOS)) {
+    throw new BadRequestException(`La vigencia no puede durar más de ${VIGENCIA_MAXIMA_ANIOS} años.`);
+  }
+  if (fechaEmision > vigenciaFin) throw new BadRequestException('La fecha de emisión debe ser anterior al fin de la vigencia.');
+};
+
 /** La fecha de cumplimiento debe quedar dentro de la vigencia de 5 años de la acreditación. Fechas YYYY-MM-DD. */
 export const validarFechaCumplimiento = (fecha: string, vigenciaInicio: string, vigenciaFin: string) => {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) throw new BadRequestException('Usa una fecha válida (AAAA-MM-DD).');
+  if (!esFechaValida(fecha)) throw new BadRequestException('Usa una fecha válida (AAAA-MM-DD).');
   if (fecha < vigenciaInicio || fecha > vigenciaFin) {
     throw new BadRequestException(`La fecha de cumplimiento debe estar entre ${vigenciaInicio} y ${vigenciaFin}.`);
   }
