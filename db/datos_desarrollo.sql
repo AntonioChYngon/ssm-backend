@@ -115,6 +115,15 @@ JOIN version_plan vp ON vp.version_plan_id = i.version_plan_id
 SET m.fecha_compromiso = '2026-06-30', m.porcentaje_esperado = 50.00
 WHERE vp.estado = 'APROBADO';
 
+-- HU-12: el plan en borrador (Actuaría) también trae sus metas configuradas, para que se pueda enviar.
+-- La fecha va después de la creación del plan (el día del seed) y antes de la fecha de cumplimiento.
+UPDATE meta m
+JOIN recomendacion r ON r.recomendacion_id = m.recomendacion_id
+JOIN indicador i ON i.indicador_id = r.indicador_id
+JOIN version_plan vp ON vp.version_plan_id = i.version_plan_id
+SET m.fecha_compromiso = '2027-03-31', m.porcentaje_esperado = 50.00
+WHERE vp.estado = 'BORRADOR';
+
 -- ---------- Hitos intermedios (legado: hito_avance; el Plan de Mejora usa meta) ----------
 INSERT INTO hito_avance (recomendacion_id, fecha_hito, porcentaje_esperado, creado_por)
 SELECT r.recomendacion_id, '2026-06-30', 50.00, @admin
