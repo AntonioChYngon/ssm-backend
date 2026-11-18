@@ -54,6 +54,8 @@ export type RecomendacionEnvio = {
   numero: number;
   acciones: number;
   metas: number;
+  /** Metas con fecha compromiso y % esperado (hitos de HU-12). */
+  metasConfiguradas: number;
   areaResponsable: string | null;
   fechaCumplimiento: string | null;
 };
@@ -63,6 +65,7 @@ export const faltantes = (r: RecomendacionEnvio, vigenciaInicio: string, vigenci
   const falta: string[] = [];
   if (r.acciones === 0) falta.push('acciones para atender la recomendación');
   if (r.metas === 0) falta.push('metas');
+  else if (r.metasConfiguradas === 0) falta.push('al menos una meta con fecha y % esperado');
   if (!r.areaResponsable?.trim()) falta.push('área responsable');
   if (!r.fechaCumplimiento) falta.push('fecha de cumplimiento');
   else if (r.fechaCumplimiento < vigenciaInicio || r.fechaCumplimiento > vigenciaFin) falta.push('fecha de cumplimiento dentro del ciclo');
@@ -84,8 +87,18 @@ export const validarEnvio = (recomendaciones: RecomendacionEnvio[], vigenciaInic
 export type MetaConfigurada = { descripcion: string; fechaCompromiso: string; porcentajeEsperado: number };
 
 /**
- * Reglas de la Configuración de Metas: descripción, fecha y % esperado obligatorios; % entero de 1 a 99
- * (el 100% se alcanza al cumplir la recomendación); fechas en orden ascendente y dentro de [desde, hasta].
+ * Fecha a partir de la cual se puede poner un hito (HU-12): el día de creación del plan,
+ * o el inicio de la vigencia si este es posterior. Fechas en UTC, como toda la base.
+ */
+export const inicioHitos = (creadoEn: Date, vigenciaInicio: string) => {
+  const creado = creadoEn.toISOString().slice(0, 10);
+  return creado > vigenciaInicio ? creado : vigenciaInicio;
+};
+
+/**
+ * Reglas de la Configuración de Metas (HU-12): descripción, fecha y % esperado obligatorios; % entero de 1 a 99
+ * (el 100% se alcanza al cumplir la recomendación); fechas en orden ascendente, posteriores a `desde`
+ * (creación del plan) y anteriores a `hasta` (fecha de cumplimiento).
  */
 export const validarMetas = (metas: MetaConfigurada[], desde: string, hasta: string) => {
   if (metas.length === 0) throw new BadRequestException('Agrega al menos una meta.');
@@ -93,8 +106,8 @@ export const validarMetas = (metas: MetaConfigurada[], desde: string, hasta: str
     const n = i + 1;
     if (!m.descripcion.trim()) throw new BadRequestException(`Describe la meta ${n}.`);
     if (!FECHA.test(m.fechaCompromiso)) throw new BadRequestException(`Elige una fecha válida para la meta ${n}.`);
-    if (m.fechaCompromiso < desde || m.fechaCompromiso > hasta) {
-      throw new BadRequestException(`La fecha de la meta ${n} debe estar entre ${desde} y ${hasta}.`);
+    if (m.fechaCompromiso <= desde || m.fechaCompromiso >= hasta) {
+      throw new BadRequestException(`La fecha de la meta ${n} debe ser posterior al ${desde} y anterior al ${hasta}.`);
     }
     if (!Number.isInteger(m.porcentajeEsperado) || m.porcentajeEsperado < 1 || m.porcentajeEsperado > 99) {
       throw new BadRequestException(`El % esperado de la meta ${n} debe ser un número entero entre 1 y 99.`);

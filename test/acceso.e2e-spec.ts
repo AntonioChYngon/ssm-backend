@@ -194,6 +194,15 @@ describe('Acceso (HU-01) y endpoints base de HU-02, HU-04 y HU-15', () => {
         const rec = r.body.recomendacionesDetalle.find((x: { id: string }) => x.id === recomendacionId);
         expect(rec.metas).toHaveLength(2);
 
+        // HU-12: con metas escritas pero sin fecha ni % todavía no se puede enviar.
+        const sinHitos = await api().post(`/api/planes/${planId}/enviar`).set('Authorization', `Bearer ${captura}`).expect(400);
+        expect(sinHitos.body.message).toContain('al menos una meta con fecha y % esperado');
+
+        // HU-12: un hito no puede quedar antes de la creación del plan.
+        await api().put(`/api/recomendaciones/${recomendacionId}/metas`).set('Authorization', `Bearer ${captura}`).send({
+          metas: [{ id: rec.metas[0].id, descripcion: 'Meta 1', fechaCompromiso: '2025-01-15', porcentajeEsperado: 50 }],
+        }).expect(400);
+
         await api().put(`/api/recomendaciones/${recomendacionId}/metas`).set('Authorization', `Bearer ${captura}`).send({
           metas: [
             { id: rec.metas[0].id, descripcion: 'Meta 1', fechaCompromiso: '2027-06-30', porcentajeEsperado: 50 },

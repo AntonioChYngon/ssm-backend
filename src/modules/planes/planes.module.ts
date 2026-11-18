@@ -54,6 +54,7 @@ import { NotificacionesService } from '../notificaciones/notificaciones.module';
 import {
   claveTexto,
   esEditable,
+  inicioHitos,
   limpiarListaOpcional,
   validarEnvio,
   validarFechaCumplimiento,
@@ -318,7 +319,15 @@ export class PlanesService {
     verificarTransicion(version.estado, 'enviar');
     const plan = await this.detalle(version);
     validarEnvio(
-      plan.recomendacionesDetalle.map((r) => ({ numero: r.numero, acciones: r.acciones.length, metas: r.metas.length, areaResponsable: r.areaResponsable, fechaCumplimiento: r.fechaCumplimiento })),
+      plan.recomendacionesDetalle.map((r) => ({
+        numero: r.numero,
+        acciones: r.acciones.length,
+        metas: r.metas.length,
+        // HU-12: solo cuentan como hito las metas que ya tienen fecha y % esperado.
+        metasConfiguradas: r.metas.filter((m) => m.fechaCompromiso && m.porcentajeEsperado != null).length,
+        areaResponsable: r.areaResponsable,
+        fechaCumplimiento: r.fechaCumplimiento,
+      })),
       version.ciclo.vigenciaInicio,
       version.ciclo.vigenciaFin,
     );
@@ -384,7 +393,7 @@ export class PlanesService {
     verificarLicenciatura(usuario, version.ciclo.licenciaturaId);
     verificarTransicion(version.estado, 'editar');
     const metas = dto.metas.map((m) => ({ ...m, descripcion: m.descripcion.trim() }));
-    validarMetas(metas, version.ciclo.vigenciaInicio, rec.fechaCumplimiento ?? version.ciclo.vigenciaFin);
+    validarMetas(metas, inicioHitos(version.creadoEn, version.ciclo.vigenciaInicio), rec.fechaCumplimiento ?? version.ciclo.vigenciaFin);
 
     await this.dataSource.transaction(async (tx) => {
       const actuales = await tx.find(Meta, { where: { recomendacionId } });
