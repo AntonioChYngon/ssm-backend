@@ -1,6 +1,7 @@
 // HU-04 · Captura del Plan de Mejora · HU-05 · Validación · HU-12 · Configuración de Metas.
 // Ver la lista de tareas en CONTRIBUTING.md.
 import {
+  BadRequestException,
   Body,
   ConflictException,
   Controller,
@@ -14,6 +15,7 @@ import {
   Param,
   Post,
   Put,
+  StreamableFile,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { InjectRepository, TypeOrmModule } from '@nestjs/typeorm';
@@ -51,6 +53,7 @@ import {
 } from '../../database/plan.entities';
 import { AuditoriaService } from '../auditoria/auditoria.module';
 import { NotificacionesService } from '../notificaciones/notificaciones.module';
+import { generarPdfPlan } from './pdf';
 import {
   claveTexto,
   esEditable,
@@ -96,14 +99,24 @@ export type RecomendacionPlan = {
   observacion: string | null;
 };
 
-export type RevisionResumen = { decision: 'APROBADO' | 'DEVUELTO'; comentario: string | null; revisor: string; fecha: string };
+export type RevisionResumen = {
+  id: string;
+  decision: 'APROBADO' | 'DEVUELTO';
+  comentario: string | null;
+  revisor: string;
+  fecha: string;
+  observaciones: Array<{ recomendacionId: string | null; comentario: string }>;
+};
 
 export type PlanDetalle = PlanResumen & {
   vigenciaInicio: string;
   vigenciaFin: string;
   editable: boolean;
+  /** Primera fecha permitida para configurar metas; debe ser superada, no igualada. */
+  fechaMinimaMeta: string;
   recomendacionesDetalle: RecomendacionPlan[];
   ultimaRevision: RevisionResumen | null;
+  revisiones: RevisionResumen[];
 };
 
 export type CicloResumen = { id: string; licenciatura: string; organismo: string; vigenciaInicio: string; vigenciaFin: string };
@@ -239,6 +252,9 @@ export class PlanesService {
     if (ciclo.estado !== 'VIGENTE') throw new ConflictException('Solo se captura el plan de un ciclo vigente.');
     if (!(await this.categorias.existsBy({ id: dto.categoriaId, activa: true }))) throw new NotFoundException('La categoría no existe.');
     if (dto.fechaCumplimiento) validarFechaCumplimiento(dto.fechaCumplimiento, ciclo.vigenciaInicio, ciclo.vigenciaFin);
+    if (dto.areaResponsable?.trim() && !(await this.areas.existsBy({ nombre: dto.areaResponsable.trim(), activa: true }))) {
+      throw new BadRequestException('Selecciona un área responsable del catálogo.');
+    }
 
     const { versionId, recId, creada } = await this.dataSource.transaction(async (tx) => {
       let version = await tx.findOne(VersionPlan, { where: { cicloId }, order: { numeroVersion: 'DESC' }, lock: { mode: 'pessimistic_write' } });
@@ -532,11 +548,12 @@ export class PlanesService {
       relations: { categoria: true, recomendaciones: { acciones: true, metas: true } },
       order: { orden: 'ASC', recomendaciones: { orden: 'ASC', acciones: { orden: 'ASC' }, metas: { orden: 'ASC' } } },
     });
-    const revision = await this.revisiones.findOne({
+    const revisiones = await this.revisiones.find({
       where: { versionPlanId: version.id },
       relations: { revisor: true, observaciones: true },
-      order: { id: 'DESC' },
+      order: { id: 'ASC' },
     });
+    const revision = revisiones.at(-1) ?? null;
     const observacionDe = new Map<string, string>();
     if (revision?.decision === 'DEVUELTO') {
       revision.observaciones.filter((o) => o.recomendacionId).forEach((o) => observacionDe.set(o.recomendacionId as string, o.comentario));
@@ -564,15 +581,21 @@ export class PlanesService {
       vigenciaInicio: version.ciclo.vigenciaInicio,
       vigenciaFin: version.ciclo.vigenciaFin,
       editable: esEditable(version.estado),
+      fechaMinimaMeta: inicioHitos(version.creadoEn, version.ciclo.vigenciaInicio),
       recomendacionesDetalle,
-      ultimaRevision: revision
-        ? {
-            decision: revision.decision,
-            comentario: revision.comentarioGeneral,
-            revisor: `${revision.revisor.nombre} ${revision.revisor.apellido}`,
-            fecha: fechaCorta(revision.revisadoEn),
-          }
-        : null,
+      ultimaRevision: revision ? this.resumenRevision(revision) : null,
+      revisiones: revisiones.map((r) => this.resumenRevision(r)),
+    };
+  }
+
+  private resumenRevision(revision: RevisionPlan): RevisionResumen {
+    return {
+      id: revision.id,
+      decision: revision.decision,
+      comentario: revision.comentarioGeneral,
+      revisor: `${revision.revisor.nombre} ${revision.revisor.apellido}`,
+      fecha: fechaCorta(revision.revisadoEn),
+      observaciones: (revision.observaciones ?? []).map((o) => ({ recomendacionId: o.recomendacionId, comentario: o.comentario })),
     };
   }
 }
@@ -607,6 +630,17 @@ export class PlanesController {
   @Get('planes/:id')
   obtener(@UsuarioActual() usuario: UsuarioToken, @Param('id') id: string) {
     return this.servicio.obtener(usuario, id);
+  }
+
+  @Get('planes/:id/pdf')
+  async reportePdf(@UsuarioActual() usuario: UsuarioToken, @Param('id') id: string) {
+    const plan = await this.servicio.obtener(usuario, id);
+    const nombre = `plan-${plan.licenciatura}-${plan.ciclo}`
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9-]+/g, '-').toLowerCase();
+    return new StreamableFile(generarPdfPlan(plan), {
+      type: 'application/pdf',
+      disposition: `attachment; filename="${nombre}.pdf"`,
+    });
   }
 
   /** Guardar borrador: nueva recomendación. */
