@@ -2,7 +2,7 @@
 import { Controller, ForbiddenException, Get, Global, Injectable, Logger, Module, NotFoundException, Param, Patch } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { InjectRepository, TypeOrmModule } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { IsNull, Repository } from 'typeorm';
 import { UsuarioActual, UsuarioToken } from '../../common/auth';
 import { Rol } from '../../common/enums';
 import { AsignacionUsuario, Notificacion } from '../../database/entities';
@@ -93,6 +93,14 @@ export class NotificacionesService {
     if (!aviso.leidaEn) await this.repo.update(id, { leidaEn: new Date() });
     return { id, leida: true };
   }
+
+  async marcarTodasLeidas(usuario: UsuarioToken) {
+    const resultado = await this.repo.update(
+      { usuarioId: usuario.sub, leidaEn: IsNull() },
+      { leidaEn: new Date() },
+    );
+    return { actualizadas: resultado.affected ?? 0 };
+  }
 }
 
 @ApiTags('Notificaciones')
@@ -104,6 +112,11 @@ export class NotificacionesController {
   @Get()
   listar(@UsuarioActual() usuario: UsuarioToken) {
     return this.servicio.listar(usuario);
+  }
+
+  @Patch('leidas')
+  marcarTodasLeidas(@UsuarioActual() usuario: UsuarioToken) {
+    return this.servicio.marcarTodasLeidas(usuario);
   }
 
   @Patch(':id/leida')

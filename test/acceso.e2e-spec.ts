@@ -29,7 +29,7 @@ describe('Acceso (HU-01) y endpoints base de HU-02, HU-04 y HU-15', () => {
       await dataSource.query('UPDATE asignacion_usuario SET activa = FALSE, desactivada_en = CURRENT_TIMESTAMP WHERE usuario_id = ? AND activa = TRUE', [usuarioPruebaId]);
       await dataSource.query('UPDATE usuario SET activo = FALSE WHERE usuario_id = ?', [usuarioPruebaId]);
     }
-    await app.close();
+    if (app) await app.close();
   });
 
   const api = () => request(app.getHttpServer());
@@ -135,6 +135,7 @@ describe('Acceso (HU-01) y endpoints base de HU-02, HU-04 y HU-15', () => {
       let planId: string;
       let cicloId: string;
       let recomendacionId: string;
+      const notificacionIds: string[] = [];
 
       afterAll(async () => {
         if (recomendacionId) {
@@ -149,7 +150,7 @@ describe('Acceso (HU-01) y endpoints base de HU-02, HU-04 y HU-15', () => {
           await dataSource.query('DELETE o FROM observacion_plan o JOIN revision_plan r ON r.revision_plan_id = o.revision_plan_id WHERE r.version_plan_id = ?', [planId]);
           await dataSource.query('DELETE FROM revision_plan WHERE version_plan_id = ?', [planId]);
           await dataSource.query("UPDATE version_plan SET estado = 'BORRADOR', enviado_en = NULL, aprobado_en = NULL WHERE version_plan_id = ?", [planId]);
-          await dataSource.query("DELETE FROM notificacion WHERE tipo LIKE 'PLAN\\_%'");
+          if (notificacionIds.length) await dataSource.query('DELETE FROM notificacion WHERE notificacion_id IN (?)', [notificacionIds]);
         }
       });
 
@@ -173,6 +174,10 @@ describe('Acceso (HU-01) y endpoints base de HU-02, HU-04 y HU-15', () => {
         expect(nueva).toBeDefined();
         expect(nueva.indicador).toBe('Indicador de prueba e2e');
         recomendacionId = nueva.id;
+        await api().get(`/api/planes/${planId}/pdf`).set('Authorization', `Bearer ${admin}`)
+          .expect('Content-Type', /application\/pdf/)
+          .expect('Content-Disposition', /attachment; filename=/)
+          .expect(200);
       });
 
       it('Enviar a validación exige recomendaciones completas', async () => {
@@ -182,13 +187,19 @@ describe('Acceso (HU-01) y endpoints base de HU-02, HU-04 y HU-15', () => {
 
       it('completa la recomendación, configura sus metas y la envía', async () => {
         const { body: catalogos } = await api().get('/api/catalogos').set('Authorization', `Bearer ${captura}`).expect(200);
+        await api().put(`/api/recomendaciones/${recomendacionId}`).set('Authorization', `Bearer ${captura}`).send({
+          categoriaId: catalogos.categorias[2].id,
+          indicador: 'Indicador de prueba e2e',
+          descripcion: 'Recomendación de prueba e2e',
+          areaResponsable: 'Área inventada fuera del catálogo',
+        }).expect(400);
         const r = await api().put(`/api/recomendaciones/${recomendacionId}`).set('Authorization', `Bearer ${captura}`).send({
           categoriaId: catalogos.categorias[2].id,
           indicador: 'Indicador de prueba e2e',
           descripcion: 'Recomendación de prueba e2e',
           acciones: ['Acción de prueba'],
           metas: ['Meta 1', 'Meta 2'],
-          areaResponsable: 'Coordinación de Actuaría',
+          areaResponsable: catalogos.areas[0].nombre,
           fechaCumplimiento: '2028-06-30',
         }).expect(200);
         const rec = r.body.recomendacionesDetalle.find((x: { id: string }) => x.id === recomendacionId);
@@ -239,15 +250,27 @@ describe('Acceso (HU-01) y endpoints base de HU-02, HU-04 y HU-15', () => {
 
         const mio = await api().get('/api/planes/mio').set('Authorization', `Bearer ${captura}`).expect(200);
         expect(mio.body.plan.ultimaRevision.comentario).toBe('Revisar la redacción');
+        expect(mio.body.plan.revisiones).toHaveLength(1);
+        expect(mio.body.plan.revisiones[0].decision).toBe('DEVUELTO');
         expect(mio.body.plan.recomendacionesDetalle.find((x: { id: string }) => x.id === recomendacionId).observacion).toBe('Precisa la meta 2');
 
         const avisos = await api().get('/api/notificaciones').set('Authorization', `Bearer ${captura}`).expect(200);
         expect(avisos.body[0].tipo).toBe('DEVOLUCION');
+        notificacionIds.push(String(avisos.body[0].id));
+        await api().patch(`/api/notificaciones/${avisos.body[0].id}/leida`).set('Authorization', `Bearer ${captura}`).expect(200);
+        const leida = await api().get('/api/notificaciones').set('Authorization', `Bearer ${captura}`).expect(200);
+        expect(leida.body.find((n: { id: string }) => n.id === avisos.body[0].id).leida).toBe(true);
 
         await api().post(`/api/planes/${planId}/enviar`).set('Authorization', `Bearer ${captura}`).expect(200);
         const validado = await api().post(`/api/planes/${planId}/validar`).set('Authorization', `Bearer ${admin}`).send({}).expect(200);
         expect(validado.body.estado).toBe('APROBADO');
         expect(validado.body.editable).toBe(false);
+        expect(validado.body.revisiones).toHaveLength(2);
+        expect(validado.body.revisiones.map((r: { decision: string }) => r.decision)).toEqual(['DEVUELTO', 'APROBADO']);
+        const avisosFinales = await api().get('/api/notificaciones').set('Authorization', `Bearer ${captura}`).expect(200);
+        const avisoValidacion = avisosFinales.body.find((n: { titulo: string }) => n.titulo === 'Plan de mejora validado');
+        expect(avisoValidacion).toBeDefined();
+        notificacionIds.push(String(avisoValidacion.id));
       });
     });
   });
