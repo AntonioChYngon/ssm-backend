@@ -1,5 +1,6 @@
 // Pruebas de integración: usan la base real (local o la de GitHub Actions) ya cargada con `npm run seed`.
 import { INestApplication } from '@nestjs/common';
+import * as bcrypt from 'bcryptjs';
 import request from 'supertest';
 import { DataSource } from 'typeorm';
 import { crearApp, tokenDe } from './app';
@@ -12,6 +13,7 @@ describe('Acceso (HU-01) y endpoints base de HU-02, HU-04 y HU-15', () => {
   let coordinacionActuaria: string;
   let coordinacionDerecho: string;
   let usuarioPruebaId: string | null = null;
+  const usuariosTemporales: string[] = [];
 
   beforeAll(async () => {
     app = await crearApp();
@@ -25,6 +27,10 @@ describe('Acceso (HU-01) y endpoints base de HU-02, HU-04 y HU-15', () => {
   });
 
   afterAll(async () => {
+    for (const id of usuariosTemporales) {
+      await dataSource.query('UPDATE asignacion_usuario SET activa = FALSE, desactivada_en = CURRENT_TIMESTAMP WHERE usuario_id = ? AND activa = TRUE', [id]);
+      await dataSource.query('UPDATE usuario SET activo = FALSE WHERE usuario_id = ?', [id]);
+    }
     if (usuarioPruebaId) {
       await dataSource.query('UPDATE asignacion_usuario SET activa = FALSE, desactivada_en = CURRENT_TIMESTAMP WHERE usuario_id = ? AND activa = TRUE', [usuarioPruebaId]);
       await dataSource.query('UPDATE usuario SET activo = FALSE WHERE usuario_id = ?', [usuarioPruebaId]);
@@ -120,6 +126,35 @@ describe('Acceso (HU-01) y endpoints base de HU-02, HU-04 y HU-15', () => {
       expect(desactivada.body.activo).toBe(false);
       const reactivada = await api().patch(`/api/usuarios/${usuarioPruebaId}/estado`).set('Authorization', `Bearer ${admin}`).send({ activo: true }).expect(200);
       expect(reactivada.body.activo).toBe(true);
+    });
+
+    it('una cuenta con contraseña temporal solo puede cambiarla; al hacerlo recibe un token normal', async () => {
+      const sociologia = await dataSource.query('SELECT coordinacion_id AS id FROM coordinacion WHERE nombre = ? LIMIT 1', ['Coordinación de Sociología']);
+      const correo = `temporal.${Date.now()}@acatlan.unam.mx`;
+      const creada = await api().post('/api/usuarios').set('Authorization', `Bearer ${admin}`).send({
+        nombre: 'Prueba',
+        apellido: 'Temporal',
+        correo,
+        rol: 'AUXILIAR',
+        coordinacionId: String(sociologia[0].id),
+      }).expect(201);
+      usuariosTemporales.push(String(creada.body.id));
+      // La temporal real va por correo; en la prueba se fija una conocida sin tocar la marca de cambio pendiente.
+      await dataSource.query('UPDATE usuario SET hash_contrasena = ? WHERE usuario_id = ?', [await bcrypt.hash('Temporal2026', 4), creada.body.id]);
+
+      const sesion = await api().post('/api/auth/login').send({ correo, contrasena: 'Temporal2026' }).expect(200);
+      expect(sesion.body.usuario.debeCambiarContrasena).toBe(true);
+      const temporal = sesion.body.token as string;
+      await api().get('/api/notificaciones').set('Authorization', `Bearer ${temporal}`).expect(403);
+      await api().get('/api/auth/me').set('Authorization', `Bearer ${temporal}`).expect(200);
+      await api().post('/api/auth/cambiar-contrasena').set('Authorization', `Bearer ${temporal}`).send({ actual: 'Temporal2026', nueva: 'Temporal2026' }).expect(400);
+
+      const cambio = await api().post('/api/auth/cambiar-contrasena').set('Authorization', `Bearer ${temporal}`).send({ actual: 'Temporal2026', nueva: 'Definitiva2026' }).expect(200);
+      expect(cambio.body.usuario.debeCambiarContrasena).toBe(false);
+      await api().get('/api/notificaciones').set('Authorization', `Bearer ${cambio.body.token}`).expect(200);
+      // Sin otro login: el límite es de 5 por minuto y la suite ya usa los demás.
+      const perfil = await api().get('/api/auth/me').set('Authorization', `Bearer ${cambio.body.token}`).expect(200);
+      expect(perfil.body.debeCambiarContrasena).toBe(false);
     });
   });
 
@@ -256,6 +291,8 @@ describe('Acceso (HU-01) y endpoints base de HU-02, HU-04 y HU-15', () => {
 
         const avisos = await api().get('/api/notificaciones').set('Authorization', `Bearer ${captura}`).expect(200);
         expect(avisos.body[0].tipo).toBe('DEVOLUCION');
+        // HU-05: el aviso detalla la observación de cada recomendación.
+        expect(avisos.body[0].descripcion).toMatch(/Recomendación \d+: Precisa la meta 2/);
         notificacionIds.push(String(avisos.body[0].id));
         await api().patch(`/api/notificaciones/${avisos.body[0].id}/leida`).set('Authorization', `Bearer ${captura}`).expect(200);
         const leida = await api().get('/api/notificaciones').set('Authorization', `Bearer ${captura}`).expect(200);

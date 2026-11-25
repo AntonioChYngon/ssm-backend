@@ -120,6 +120,7 @@ export class UsuariosService {
           apellido: dto.apellido.trim(),
           correo,
           hashContrasena: await bcrypt.hash(temporal, COSTO_BCRYPT),
+          debeCambiarContrasena: true,
           activo: true,
         }));
         await asignaciones.save(asignaciones.create({
@@ -185,7 +186,7 @@ export class UsuariosService {
     if (!usuario) throw new NotFoundException('No se encontró la cuenta.');
     const temporal = generarContrasenaTemporal();
     await this.dataSource.transaction(async (tx) => {
-      await tx.getRepository(Usuario).update(id, { hashContrasena: await bcrypt.hash(temporal, COSTO_BCRYPT) });
+      await tx.getRepository(Usuario).update(id, { hashContrasena: await bcrypt.hash(temporal, COSTO_BCRYPT), debeCambiarContrasena: true });
       // Si no se puede entregar el correo, conserva la contraseña anterior.
       await this.enviarContrasenaTemporal(usuario, temporal, 'Restablecimiento de contraseña del SSM');
     });
@@ -264,7 +265,7 @@ export class UsuariosService {
     await this.correo.enviar({
       para: usuario.correo,
       asunto,
-      texto: `Hola ${usuario.nombre}:\n\nTu contraseña temporal para ingresar al Sistema de Seguimiento de Mejora es:\n${temporal}\n\nInicia sesión con tu correo institucional y cambia la contraseña desde tu perfil.`,
+      texto: `Hola ${usuario.nombre}:\n\nTu contraseña temporal para ingresar al Sistema de Seguimiento de Mejora es:\n${temporal}\n\nInicia sesión con tu correo institucional: el sistema te pedirá crear una contraseña nueva antes de continuar.`,
     });
   }
 

@@ -59,6 +59,7 @@ import {
   esEditable,
   inicioHitos,
   limpiarListaOpcional,
+  mensajeDevolucion,
   validarEnvio,
   validarFechaCumplimiento,
   validarMetas,
@@ -369,7 +370,7 @@ export class PlanesService {
     await this.notificaciones.notificarLicenciatura(version.ciclo.licenciaturaId, {
       tipo: 'PLAN_VALIDADO',
       titulo: 'Plan de mejora validado',
-      mensaje: `La Administración validó el plan de mejora ${etiquetaCiclo(version.ciclo)}.`,
+      mensaje: `La Administración validó el plan de mejora ${etiquetaCiclo(version.ciclo)}.${dto.comentario?.trim() ? ` Comentario: ${dto.comentario.trim()}` : ''}`,
     });
     return this.obtener(admin, versionId);
   }
@@ -379,7 +380,8 @@ export class PlanesService {
     const version = await this.versionConCiclo(versionId);
     verificarTransicion(version.estado, 'devolver');
     const observaciones = (dto.observaciones ?? []).filter((o) => o.comentario.trim());
-    const propias = new Set((await this.detalle(version)).recomendacionesDetalle.map((r) => r.id));
+    const recomendaciones = (await this.detalle(version)).recomendacionesDetalle;
+    const propias = new Set(recomendaciones.map((r) => r.id));
     if (observaciones.some((o) => !propias.has(o.recomendacionId))) {
       throw new NotFoundException('Una observación apunta a una recomendación que no es de este plan.');
     }
@@ -394,7 +396,7 @@ export class PlanesService {
     await this.notificaciones.notificarLicenciatura(version.ciclo.licenciaturaId, {
       tipo: 'PLAN_DEVUELTO',
       titulo: 'Plan de mejora devuelto',
-      mensaje: `La Administración devolvió tu plan con ${observaciones.length} observación(es): ${dto.motivo.trim().slice(0, 300)}`,
+      mensaje: mensajeDevolucion(dto.motivo, observaciones, recomendaciones),
     });
     return this.obtener(admin, versionId);
   }

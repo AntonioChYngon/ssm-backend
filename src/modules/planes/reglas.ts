@@ -121,3 +121,21 @@ export const validarMetas = (metas: MetaConfigurada[], desde: string, hasta: str
 
 // TODO(HU-04): "Metas medibles": decidir con el equipo cómo validar que una meta sea cuantitativa
 // (por ejemplo, exigir un número o un porcentaje en el texto).
+
+/**
+ * HU-05: texto del aviso de devolución con el motivo general y cada observación ligada a su recomendación,
+ * en el orden del plan. Las observaciones de recomendaciones desconocidas se ignoran.
+ */
+export const mensajeDevolucion = (
+  motivo: string,
+  observaciones: ReadonlyArray<{ recomendacionId: string; comentario: string }>,
+  recomendaciones: ReadonlyArray<{ id: string; numero: number }>,
+) => {
+  const numeroDe = new Map(recomendaciones.map((r) => [r.id, r.numero]));
+  const lineas = observaciones
+    .filter((o) => numeroDe.has(o.recomendacionId))
+    .sort((a, b) => (numeroDe.get(a.recomendacionId) ?? 0) - (numeroDe.get(b.recomendacionId) ?? 0))
+    .map((o) => `• Recomendación ${numeroDe.get(o.recomendacionId)}: ${o.comentario.trim()}`);
+  const encabezado = `La Administración devolvió tu plan de mejora. Motivo: ${motivo.trim()}`;
+  return lineas.length ? `${encabezado}\n\nObservaciones:\n${lineas.join('\n')}` : encabezado;
+};

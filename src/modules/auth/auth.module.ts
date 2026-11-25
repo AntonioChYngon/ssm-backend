@@ -8,7 +8,7 @@ import * as bcrypt from 'bcryptjs';
 import { IsEmail, IsString, Length } from 'class-validator';
 import { createHash, randomBytes } from 'node:crypto';
 import { IsNull, MoreThan, Repository } from 'typeorm';
-import { Publico, UsuarioActual, UsuarioToken } from '../../common/auth';
+import { PermitidoConCambioPendiente, Publico, UsuarioActual, UsuarioToken } from '../../common/auth';
 import { AsignacionUsuario, TokenRestauracion, Usuario } from '../../database/entities';
 import { AuditoriaService } from '../auditoria/auditoria.module';
 import { CorreoService } from '../correo/correo.module';
@@ -57,6 +57,8 @@ export type PerfilUsuario = {
   coordinacion: string | null;
   licenciatura: string | null;
   activo: boolean;
+  /** TRUE si debe cambiar su contraseña temporal antes de usar el sistema. */
+  debeCambiarContrasena: boolean;
 };
 
 const COSTO_BCRYPT = 12;
@@ -106,7 +108,20 @@ export class AuthService {
       coordinacion: asignacion.coordinacion?.nombre ?? null,
       licenciatura: asignacion.coordinacion?.licenciatura?.nombre ?? null,
       activo: usuario.activo,
+      debeCambiarContrasena: usuario.debeCambiarContrasena,
     };
+  }
+
+  private firmar(usuario: Usuario, asignacion: AsignacionUsuario): Promise<string> {
+    const payload: UsuarioToken = {
+      sub: usuario.id,
+      correo: usuario.correo,
+      rol: asignacion.rolCodigo,
+      coordinacionId: asignacion.coordinacionId,
+      licenciaturaId: asignacion.coordinacion?.licenciaturaId ?? null,
+      ...(usuario.debeCambiarContrasena ? { cambioPendiente: true } : {}),
+    };
+    return this.jwt.signAsync(payload);
   }
 
   async login({ correo, contrasena }: LoginDto) {
@@ -128,15 +143,8 @@ export class AuthService {
       throw new UnauthorizedException('Tu cuenta no tiene un rol asignado. Contacta al Administrador del sistema.');
     }
 
-    const payload: UsuarioToken = {
-      sub: usuario.id,
-      correo: usuario.correo,
-      rol: asignacion.rolCodigo,
-      coordinacionId: asignacion.coordinacionId,
-      licenciaturaId: asignacion.coordinacion?.licenciaturaId ?? null,
-    };
-    await this.auditoria.registrar(payload, { entidad: 'usuario', entidadId: usuario.id, campo: 'sesion', nuevo: 'INICIO_SESION' });
-    return { token: await this.jwt.signAsync(payload), usuario: this.perfil(usuario, asignacion) };
+    await this.auditoria.registrar({ sub: usuario.id, rol: asignacion.rolCodigo }, { entidad: 'usuario', entidadId: usuario.id, campo: 'sesion', nuevo: 'INICIO_SESION' });
+    return { token: await this.firmar(usuario, asignacion), usuario: this.perfil(usuario, asignacion) };
   }
 
   async me(token: UsuarioToken): Promise<PerfilUsuario> {
@@ -169,7 +177,8 @@ export class AuthService {
     if (!esContrasenaSegura(nueva)) throw new BadRequestException(MENSAJE_CONTRASENA);
     const registro = await this.tokens.findOneBy({ tokenHash: sha256(token), usadoEn: IsNull(), expiraEn: MoreThan(new Date()) });
     if (!registro) throw new BadRequestException('El enlace no es válido o ya venció. Solicita uno nuevo.');
-    await this.usuarios.update(registro.usuarioId, { hashContrasena: await bcrypt.hash(nueva, COSTO_BCRYPT) });
+    // Quien entra por el enlace de su correo elige su propia contraseña: ya no es temporal.
+    await this.usuarios.update(registro.usuarioId, { hashContrasena: await bcrypt.hash(nueva, COSTO_BCRYPT), debeCambiarContrasena: false });
     await this.tokens.update(registro.id, { usadoEn: new Date() });
     const asignacion = await this.asignacionActiva(registro.usuarioId);
     if (asignacion) {
@@ -182,9 +191,14 @@ export class AuthService {
     if (!esContrasenaSegura(nueva)) throw new BadRequestException(MENSAJE_CONTRASENA);
     const usuario = await this.buscarConHash({ id: token.sub });
     if (!usuario || !(await bcrypt.compare(actual, usuario.hashContrasena))) throw new BadRequestException('La contraseña actual no es correcta.');
-    await this.usuarios.update(usuario.id, { hashContrasena: await bcrypt.hash(nueva, COSTO_BCRYPT) });
+    if (await bcrypt.compare(nueva, usuario.hashContrasena)) throw new BadRequestException('La contraseña nueva debe ser distinta de la actual.');
+    await this.usuarios.update(usuario.id, { hashContrasena: await bcrypt.hash(nueva, COSTO_BCRYPT), debeCambiarContrasena: false });
     await this.auditoria.registrar(token, { entidad: 'usuario', entidadId: usuario.id, campo: 'hash_contrasena', nuevo: 'CAMBIADA' });
-    return { mensaje: 'Contraseña actualizada.' };
+    // Token nuevo sin el cambio pendiente: la sesión sigue sin volver a iniciar sesión.
+    const actualizado = await this.usuarios.findOneBy({ id: usuario.id });
+    const asignacion = await this.asignacionActiva(usuario.id);
+    if (!actualizado || !asignacion) throw new UnauthorizedException('Tu sesión ya no es válida. Vuelve a iniciar sesión.');
+    return { mensaje: 'Contraseña actualizada.', token: await this.firmar(actualizado, asignacion), usuario: this.perfil(actualizado, asignacion) };
   }
 }
 
@@ -218,12 +232,14 @@ export class AuthController {
   }
 
   @ApiBearerAuth()
+  @PermitidoConCambioPendiente()
   @Get('me')
   me(@UsuarioActual() usuario: UsuarioToken) {
     return this.auth.me(usuario);
   }
 
   @ApiBearerAuth()
+  @PermitidoConCambioPendiente()
   @Post('cambiar-contrasena')
   @HttpCode(200)
   cambiar(@UsuarioActual() usuario: UsuarioToken, @Body() dto: CambiarContrasenaDto) {

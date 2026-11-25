@@ -7,6 +7,7 @@ import {
   inicioHitos,
   limpiarLista,
   limpiarListaOpcional,
+  mensajeDevolucion,
   validarEnvio,
   validarFechaCumplimiento,
   validarMetas,
@@ -114,5 +115,27 @@ describe('HU-12 · inicioHitos', () => {
   it('usa la creación del plan, o el inicio de la vigencia si es posterior', () => {
     expect(inicioHitos(new Date('2026-11-17T20:00:00Z'), inicio)).toBe('2026-11-17');
     expect(inicioHitos(new Date('2024-01-10T12:00:00Z'), inicio)).toBe(inicio);
+  });
+});
+
+describe('mensajeDevolucion (HU-05)', () => {
+  const recomendaciones = [
+    { id: '10', numero: 1 },
+    { id: '11', numero: 2 },
+  ];
+
+  it('incluye el motivo y cada observación con el número de su recomendación, en orden', () => {
+    const texto = mensajeDevolucion(' Faltan evidencias ', [
+      { recomendacionId: '11', comentario: 'Agrega una meta medible' },
+      { recomendacionId: '10', comentario: ' Corrige el área ' },
+    ], recomendaciones);
+    expect(texto).toBe(
+      'La Administración devolvió tu plan de mejora. Motivo: Faltan evidencias\n\nObservaciones:\n' +
+        '• Recomendación 1: Corrige el área\n• Recomendación 2: Agrega una meta medible',
+    );
+  });
+
+  it('sin observaciones solo lleva el motivo', () => {
+    expect(mensajeDevolucion('Incompleto', [], recomendaciones)).toBe('La Administración devolvió tu plan de mejora. Motivo: Incompleto');
   });
 });
