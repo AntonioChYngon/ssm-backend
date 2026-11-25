@@ -11,7 +11,7 @@ El equipo definió su propio esquema (`db/ssm_mariadb.sql`), así que se están 
 | auth / usuarios (HU-02 en curso en `src/modules/usuarios`) | `usuario`, `rol`, `asignacion_usuario`, `coordinacion`, `token_restauracion_contrasena` | ✅ migrado (login) |
 | bitacora | `registro_auditoria` | ✅ migrado como `auditoria` |
 | planes (HU-04 en curso en `src/modules/planes`) | `ciclo_acreditacion`, `version_plan`, `indicador`, `recomendacion`, `accion_recomendacion`, `meta`, `hito_avance`, `revision_plan`, `observacion_plan` | pendiente |
-| informes | `informe`, `version_informe`, `avance_recomendacion`, `revision_informe`, `observacion_informe` | pendiente |
-| evidencias | `evidencia` | pendiente |
+| informes (bloque Informe en `src/modules/informes`) | `informe`, `version_informe`, `avance_recomendacion`, `revision_informe`, `observacion_informe` | 🔄 base lista (lectura); HU-07 y HU-08 en curso |
+| evidencias (en `src/modules/informes`) | `evidencia` | 🔄 lectura y descarga listas; subida en HU-07 |
 | notificaciones | `notificacion` | pendiente |
 | reportes (HU-15 en curso en `src/modules/reportes`) | consultas sobre las anteriores | pendiente |

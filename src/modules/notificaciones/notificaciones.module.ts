@@ -11,7 +11,15 @@ import { AsignacionUsuario, Notificacion } from '../../database/entities';
 import { CorreoService } from '../correo/correo.module';
 
 /** Tipos guardados en notificacion.tipo. */
-export type TipoAviso = 'PLAN_ENVIADO' | 'PLAN_VALIDADO' | 'PLAN_DEVUELTO';
+export type TipoAviso =
+  | 'PLAN_ENVIADO'
+  | 'PLAN_VALIDADO'
+  | 'PLAN_DEVUELTO'
+  // Bloque Informe: HU-11 (enviado) y HU-08 (validado, devuelto, reabierto).
+  | 'INFORME_ENVIADO'
+  | 'INFORME_VALIDADO'
+  | 'INFORME_DEVUELTO'
+  | 'INFORME_REABIERTO';
 
 export type Aviso = { tipo: TipoAviso; titulo: string; mensaje: string };
 type Destinatario = { usuarioId: string; correo: string };
@@ -28,8 +36,26 @@ export type NotificacionListado = {
   enlace: string;
 };
 
-const TIPO_FRONT: Record<string, NotificacionListado['tipo']> = { PLAN_ENVIADO: 'PLAN', PLAN_VALIDADO: 'PLAN', PLAN_DEVUELTO: 'DEVOLUCION' };
-const ENLACE: Record<string, string> = { PLAN_ENVIADO: '/admin/planes', PLAN_VALIDADO: '/licenciatura/dashboard', PLAN_DEVUELTO: '/licenciatura/plan' };
+const TIPO_FRONT: Record<TipoAviso, NotificacionListado['tipo']> = {
+  PLAN_ENVIADO: 'PLAN',
+  PLAN_VALIDADO: 'PLAN',
+  PLAN_DEVUELTO: 'DEVOLUCION',
+  INFORME_ENVIADO: 'PLAN',
+  INFORME_VALIDADO: 'PLAN',
+  INFORME_DEVUELTO: 'DEVOLUCION',
+  INFORME_REABIERTO: 'DEVOLUCION',
+};
+/** Enlace fijo por tipo de aviso: la pantalla donde se atiende. */
+const ENLACE: Record<TipoAviso, string> = {
+  PLAN_ENVIADO: '/admin/planes',
+  PLAN_VALIDADO: '/licenciatura/dashboard',
+  PLAN_DEVUELTO: '/licenciatura/plan',
+  INFORME_ENVIADO: '/admin/informes',
+  INFORME_VALIDADO: '/licenciatura/informe',
+  INFORME_DEVUELTO: '/licenciatura/informe',
+  INFORME_REABIERTO: '/licenciatura/informe',
+};
+const esTipoAviso = (tipo: string): tipo is TipoAviso => tipo in ENLACE;
 
 /** Texto del correo: el mismo mensaje del aviso In-App más el enlace a la pantalla donde se atiende. */
 export const cuerpoCorreo = (aviso: Aviso, frontendUrl: string) =>
@@ -105,12 +131,12 @@ export class NotificacionesService {
     const avisos = await this.repo.find({ where: { usuarioId: usuario.sub }, order: { id: 'DESC' }, take: 30 });
     return avisos.map((n) => ({
       id: n.id,
-      tipo: TIPO_FRONT[n.tipo] ?? 'PLAN',
+      tipo: esTipoAviso(n.tipo) ? TIPO_FRONT[n.tipo] : 'PLAN',
       titulo: n.titulo,
       descripcion: n.mensaje,
       fecha: fechaCorta(n.enviadaEn),
       leida: n.leidaEn !== null,
-      enlace: ENLACE[n.tipo] ?? '/',
+      enlace: esTipoAviso(n.tipo) ? ENLACE[n.tipo] : '/',
     }));
   }
 

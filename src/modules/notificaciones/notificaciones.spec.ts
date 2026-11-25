@@ -64,4 +64,13 @@ describe('NotificacionesService · aviso por correo (HU-05, HU-11)', () => {
     expect(texto).toContain('Motivo: faltan metas');
     expect(texto).toContain('http://localhost:3000/licenciatura/plan');
   });
+
+  it('los avisos del informe llevan a la pantalla del informe (HU-08, HU-11)', () => {
+    const enlace = (tipo: 'INFORME_ENVIADO' | 'INFORME_VALIDADO' | 'INFORME_DEVUELTO' | 'INFORME_REABIERTO') =>
+      cuerpoCorreo({ tipo, titulo: 't', mensaje: 'm' }, 'http://localhost:3000');
+    expect(enlace('INFORME_ENVIADO')).toContain('http://localhost:3000/admin/informes');
+    expect(enlace('INFORME_VALIDADO')).toContain('http://localhost:3000/licenciatura/informe');
+    expect(enlace('INFORME_DEVUELTO')).toContain('http://localhost:3000/licenciatura/informe');
+    expect(enlace('INFORME_REABIERTO')).toContain('http://localhost:3000/licenciatura/informe');
+  });
 });

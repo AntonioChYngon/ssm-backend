@@ -7,8 +7,13 @@
 --   HU-02  Varias coordinaciones sin cuentas, para dar de alta Captura y Auxiliar.
 --   HU-04  Actuaría con su plan en BORRADOR y 2 recomendaciones, listo para seguir capturando.
 --          Arquitectura con ciclo vigente y SIN plan (el primer guardado crea la versión 1).
---   HU-15  Derecho y Economía con plan APROBADO e informe APROBADO:
+--   HU-15  Derecho y Economía con plan APROBADO e informe 2026-2 APROBADO:
 --          recomendaciones al 100%, en proceso, al 0% y sin avance registrado.
+--   Bloque Informe (HU-07, HU-08, HU-11), semestres con calendario UNAM (informes/reglas.ts · SEMESTRES):
+--          2026-2 APROBADO (DER y ECO) con evidencias de archivo y de enlace y su validación.
+--          2027-1 EN_REVISION (DER): ya se devolvió una vez y se reenvió; listo para validar o devolver.
+--          2027-1 BORRADOR (ECO): una recomendación al 100 % sin evidencia (el envío debe fallar).
+--          Los PDF de las evidencias de archivo los crea `npm run seed` en CARPETAS_DIR.
 -- =====================================================================
 
 SET @admin := (
@@ -113,33 +118,123 @@ JOIN indicador i ON i.indicador_id = r.indicador_id
 JOIN version_plan vp ON vp.version_plan_id = i.version_plan_id
 WHERE vp.estado = 'APROBADO';
 
--- ---------- Informe de seguimiento aprobado (DER y ECO) ----------
+-- ---------- Informes de seguimiento (bloque Informe) ----------
+SET @captura_der := COALESCE((
+  SELECT a.usuario_id FROM asignacion_usuario a
+  JOIN coordinacion co ON co.coordinacion_id = a.coordinacion_id
+  JOIN licenciatura l ON l.licenciatura_id = co.licenciatura_id
+  WHERE l.clave = 'DER' AND a.rol_codigo = 'CAPTURA' AND a.activa = TRUE LIMIT 1), @admin);
+SET @captura_eco := COALESCE((
+  SELECT a.usuario_id FROM asignacion_usuario a
+  JOIN coordinacion co ON co.coordinacion_id = a.coordinacion_id
+  JOIN licenciatura l ON l.licenciatura_id = co.licenciatura_id
+  WHERE l.clave = 'ECO' AND a.rol_codigo = 'CAPTURA' AND a.activa = TRUE LIMIT 1), @admin);
+
+-- Semestres: 2026-2 = 01/02/2026–31/07/2026 · 2027-1 = 01/08/2026–31/01/2027. El corte es el último día.
 INSERT INTO informe (ciclo_id, nombre_periodo, fecha_inicio, fecha_fin, fecha_corte)
-SELECT vp.ciclo_id, 'Informe 2025-2026', '2025-01-01', '2026-12-31', '2026-10-31'
-FROM version_plan vp WHERE vp.estado = 'APROBADO';
-
-INSERT INTO version_informe (informe_id, version_plan_id, numero_version, estado, creado_por, enviado_en, aprobado_en)
-SELECT inf.informe_id, vp.version_plan_id, 1, 'APROBADO', @admin, '2026-11-01 09:00:00', '2026-11-05 13:00:00'
-FROM informe inf
-JOIN version_plan vp ON vp.ciclo_id = inf.ciclo_id AND vp.estado = 'APROBADO';
-
--- Avances: (licenciatura, indicador, recomendación, %). Las que no aparecen quedan SIN avance registrado.
---   DER: 100 · 40 · 0 · (sin avance)      ECO: 100 · 100 · 75
---   Resultado esperado de HU-15 → DER: 1 atendida, 1 en proceso, 2 no atendidas · ECO: 2 atendidas, 1 en proceso.
-INSERT INTO avance_recomendacion (version_informe_id, recomendacion_id, porcentaje, observaciones, actualizado_por)
-SELECT vi.version_informe_id, r.recomendacion_id, d.porcentaje, 'Avance de ejemplo', @admin
+SELECT vp.ciclo_id, d.periodo, d.inicio, d.fin, d.fin
 FROM (
-  SELECT 'DER' AS clave, 1 AS ind, 1 AS rec, 100.00 AS porcentaje
-  UNION ALL SELECT 'DER', 1, 2, 40.00
-  UNION ALL SELECT 'DER', 2, 1, 0.00
-  UNION ALL SELECT 'ECO', 1, 1, 100.00
-  UNION ALL SELECT 'ECO', 1, 2, 100.00
-  UNION ALL SELECT 'ECO', 2, 1, 75.00
+  SELECT 'DER' AS clave, '2026-2' AS periodo, '2026-02-01' AS inicio, '2026-07-31' AS fin
+  UNION ALL SELECT 'ECO', '2026-2', '2026-02-01', '2026-07-31'
+  UNION ALL SELECT 'DER', '2027-1', '2026-08-01', '2027-01-31'
+  UNION ALL SELECT 'ECO', '2027-1', '2026-08-01', '2027-01-31'
 ) d
 JOIN licenciatura l ON l.clave = d.clave
 JOIN ciclo_acreditacion c ON c.licenciatura_id = l.licenciatura_id
-JOIN version_plan vp ON vp.ciclo_id = c.ciclo_id
+JOIN version_plan vp ON vp.ciclo_id = c.ciclo_id AND vp.estado = 'APROBADO';
+
+INSERT INTO version_informe (informe_id, version_plan_id, numero_version, estado, creado_por, enviado_en, aprobado_en)
+SELECT inf.informe_id, vp.version_plan_id, 1, d.estado, IF(d.clave = 'DER', @captura_der, @captura_eco), d.enviado, d.aprobado
+FROM (
+  SELECT 'DER' AS clave, '2026-2' AS periodo, 'APROBADO' AS estado, '2026-08-05 09:00:00' AS enviado, '2026-08-12 13:00:00' AS aprobado
+  UNION ALL SELECT 'ECO', '2026-2', 'APROBADO', '2026-08-04 11:00:00', '2026-08-12 13:30:00'
+  UNION ALL SELECT 'DER', '2027-1', 'EN_REVISION', '2026-11-20 10:00:00', NULL
+  UNION ALL SELECT 'ECO', '2027-1', 'BORRADOR', NULL, NULL
+) d
+JOIN licenciatura l ON l.clave = d.clave
+JOIN ciclo_acreditacion c ON c.licenciatura_id = l.licenciatura_id
+JOIN version_plan vp ON vp.ciclo_id = c.ciclo_id AND vp.estado = 'APROBADO'
+JOIN informe inf ON inf.ciclo_id = c.ciclo_id AND inf.nombre_periodo = d.periodo;
+
+-- Avances: (licenciatura, semestre, indicador, recomendación, %). Las que no aparecen quedan SIN avance registrado.
+--   2026-2 · DER: 100 · 40 · 0 · (sin avance)      ECO: 100 · 100 · 75
+--   Resultado esperado de HU-15 (informe aprobado) → DER: 1 atendida, 1 en proceso, 2 no atendidas · ECO: 2 atendidas, 1 en proceso.
+--   2027-1 · DER (en revisión): 100 · 60 · 20 · 0        ECO (borrador): 100 (sin evidencia) · 50 · (sin avance)
+INSERT INTO avance_recomendacion (version_informe_id, recomendacion_id, porcentaje, observaciones, actualizado_por)
+SELECT vi.version_informe_id, r.recomendacion_id, d.porcentaje, d.observaciones, IF(d.clave = 'DER', @captura_der, @captura_eco)
+FROM (
+  SELECT 'DER' AS clave, '2026-2' AS periodo, 1 AS ind, 1 AS rec, 100.00 AS porcentaje, 'Programas del área procesal actualizados y aprobados por el Consejo Técnico.' AS observaciones
+  UNION ALL SELECT 'DER', '2026-2', 1, 2, 40.00, 'Se diseñaron 2 de 5 prácticas de juicios orales.'
+  UNION ALL SELECT 'DER', '2026-2', 2, 1, 0.00, 'En espera de presupuesto.'
+  UNION ALL SELECT 'ECO', '2026-2', 1, 1, 100.00, 'Sistema de seguimiento de egresados en operación.'
+  UNION ALL SELECT 'ECO', '2026-2', 1, 2, 100.00, 'Índice de reprobación reducido del 38% al 24%.'
+  UNION ALL SELECT 'ECO', '2026-2', 2, 1, 75.00, 'Tres artículos aceptados de cuatro programados.'
+  UNION ALL SELECT 'DER', '2027-1', 1, 1, 100.00, 'Programas publicados en el sitio de la licenciatura.'
+  UNION ALL SELECT 'DER', '2027-1', 1, 2, 60.00, 'Se diseñaron 3 de 5 prácticas; se corrigió la evidencia que pidió la Administración.'
+  UNION ALL SELECT 'DER', '2027-1', 2, 1, 20.00, 'Cotizaciones solicitadas a tres proveedores.'
+  UNION ALL SELECT 'DER', '2027-1', 2, 2, 0.00, NULL
+  UNION ALL SELECT 'ECO', '2027-1', 1, 1, 100.00, 'Falta subir el reporte del sistema.'
+  UNION ALL SELECT 'ECO', '2027-1', 1, 2, 50.00, NULL
+) d
+JOIN licenciatura l ON l.clave = d.clave
+JOIN ciclo_acreditacion c ON c.licenciatura_id = l.licenciatura_id
+JOIN version_plan vp ON vp.ciclo_id = c.ciclo_id AND vp.estado = 'APROBADO'
 JOIN indicador i ON i.version_plan_id = vp.version_plan_id AND i.orden = d.ind
 JOIN recomendacion r ON r.indicador_id = i.indicador_id AND r.orden = d.rec
-JOIN informe inf ON inf.ciclo_id = c.ciclo_id
+JOIN informe inf ON inf.ciclo_id = c.ciclo_id AND inf.nombre_periodo = d.periodo
 JOIN version_informe vi ON vi.informe_id = inf.informe_id;
+
+-- Evidencias: archivo (PDF en /Evidencias/[Lic]/[Ciclo]/Informe-[semestre]/Rec-[NN]/) o enlace externo (Plan B).
+-- El tamaño y el checksum de los archivos los completa el seed al crear el PDF de ejemplo.
+INSERT INTO evidencia (avance_id, origen, nombre_original, nombre_guardado, ubicacion, tamano_bytes, cargada_por, cargada_en)
+SELECT a.avance_id, d.origen, d.nombre,
+       IF(d.origen = 'ARCHIVO', CONCAT('ejemplo-', LOWER(d.clave), '-', d.periodo, '-rec', LPAD(d.numero, 2, '0'), '.pdf'), NULL),
+       IF(d.origen = 'ARCHIVO',
+          CONCAT('/Evidencias/', l.nombre, '/', c.nombre, '/Informe-', d.periodo, '/Rec-', LPAD(d.numero, 2, '0'),
+                 '/ejemplo-', LOWER(d.clave), '-', d.periodo, '-rec', LPAD(d.numero, 2, '0'), '.pdf'),
+          d.url),
+       IF(d.origen = 'ARCHIVO', 1, NULL),
+       IF(d.clave = 'DER', @captura_der, @captura_eco),
+       d.fecha
+FROM (
+  -- numero = número de la recomendación en el informe (orden del plan: indicador y recomendación).
+  SELECT 'DER' AS clave, '2026-2' AS periodo, 1 AS ind, 1 AS rec, 1 AS numero, 'ARCHIVO' AS origen, 'Acta del Consejo Técnico.docx' AS nombre, NULL AS url, '2026-07-20 12:00:00' AS fecha
+  UNION ALL SELECT 'ECO', '2026-2', 1, 1, 1, 'URL', 'Tablero de egresados', 'https://www.acatlan.unam.mx/', '2026-07-22 10:00:00'
+  UNION ALL SELECT 'ECO', '2026-2', 1, 2, 2, 'ARCHIVO', 'Reporte de reprobación 2026-2.xlsx', NULL, '2026-07-25 16:30:00'
+  UNION ALL SELECT 'DER', '2027-1', 1, 1, 1, 'ARCHIVO', 'Programas publicados.pdf', NULL, '2026-11-10 09:15:00'
+  UNION ALL SELECT 'DER', '2027-1', 1, 1, 1, 'URL', 'Sitio de la licenciatura', 'https://www.acatlan.unam.mx/', '2026-11-10 09:20:00'
+  UNION ALL SELECT 'DER', '2027-1', 1, 2, 2, 'ARCHIVO', 'Guía de prácticas de juicios orales.pptx', NULL, '2026-11-18 13:00:00'
+) d
+JOIN licenciatura l ON l.clave = d.clave
+JOIN ciclo_acreditacion c ON c.licenciatura_id = l.licenciatura_id
+JOIN version_plan vp ON vp.ciclo_id = c.ciclo_id AND vp.estado = 'APROBADO'
+JOIN indicador i ON i.version_plan_id = vp.version_plan_id AND i.orden = d.ind
+JOIN recomendacion r ON r.indicador_id = i.indicador_id AND r.orden = d.rec
+JOIN informe inf ON inf.ciclo_id = c.ciclo_id AND inf.nombre_periodo = d.periodo
+JOIN version_informe vi ON vi.informe_id = inf.informe_id
+JOIN avance_recomendacion a ON a.version_informe_id = vi.version_informe_id AND a.recomendacion_id = r.recomendacion_id;
+
+-- Revisiones: validación de los 2026-2 y una devolución previa del 2027-1 de Derecho (ya corregido y reenviado).
+INSERT INTO revision_informe (version_informe_id, revisor_id, decision, comentario_general, revisado_en)
+SELECT vi.version_informe_id, @admin, d.decision, d.comentario, d.fecha
+FROM (
+  SELECT 'DER' AS clave, '2026-2' AS periodo, 'APROBADO' AS decision, 'Informe completo.' AS comentario, '2026-08-12 13:00:00' AS fecha
+  UNION ALL SELECT 'ECO', '2026-2', 'APROBADO', NULL, '2026-08-12 13:30:00'
+  UNION ALL SELECT 'DER', '2027-1', 'DEVUELTO', 'Falta soporte documental en una recomendación.', '2026-11-15 11:00:00'
+) d
+JOIN licenciatura l ON l.clave = d.clave
+JOIN ciclo_acreditacion c ON c.licenciatura_id = l.licenciatura_id
+JOIN informe inf ON inf.ciclo_id = c.ciclo_id AND inf.nombre_periodo = d.periodo
+JOIN version_informe vi ON vi.informe_id = inf.informe_id;
+
+INSERT INTO observacion_informe (revision_informe_id, recomendacion_id, comentario)
+SELECT ri.revision_informe_id, r.recomendacion_id, 'Sube la guía de las prácticas diseñadas.'
+FROM revision_informe ri
+JOIN version_informe vi ON vi.version_informe_id = ri.version_informe_id
+JOIN informe inf ON inf.informe_id = vi.informe_id AND inf.nombre_periodo = '2027-1'
+JOIN ciclo_acreditacion c ON c.ciclo_id = inf.ciclo_id
+JOIN licenciatura l ON l.licenciatura_id = c.licenciatura_id AND l.clave = 'DER'
+JOIN version_plan vp ON vp.version_plan_id = vi.version_plan_id
+JOIN indicador i ON i.version_plan_id = vp.version_plan_id AND i.orden = 1
+JOIN recomendacion r ON r.indicador_id = i.indicador_id AND r.orden = 2
+WHERE ri.decision = 'DEVUELTO';

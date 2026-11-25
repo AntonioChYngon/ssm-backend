@@ -94,6 +94,27 @@ Los catálogos reales vienen de **Catálogos.xlsx**: `db/catalogos/generar_catal
   (`null` vacía, ausente conserva lo configurado en Metas) y también el formato anterior de solo texto.
 - En discusión con el equipo (25/11/2026): si la pestaña *Metas* se conserva o se retira.
 
+## D9 · Bloque Informe de Seguimiento (HU-07, HU-08, HU-11) · 25/11/2026
+Plan completo y lista de decisiones en el proyecto del equipo (`bloque-informe-plan.md` y `bloque-informe-decisiones.md`).
+- **Un informe por semestre** (`2026-1`, `2026-2`…), con calendario UNAM: `AAAA-1` = agosto del año anterior a enero y
+  `AAAA-2` = febrero a julio. El primer y el último semestre se recortan a la vigencia del ciclo; el corte es el último día.
+  Las fechas viven **solo** en la constante `SEMESTRES` de `src/modules/informes/reglas.ts` (comentada para cambiarla).
+- El informe se liga a la última versión **APROBADA** del plan; sin plan aprobado no se inicia.
+- **% de avance escrito con teclado**, entero de 0 a 100 (HU-07 decía "catálogo"; va en minuta con el cliente).
+  También hay un CHECK en la base (`ck_avance_entero`).
+- **Evidencia obligatoria solo al 100 %**, y se revisa al enviar. Archivos `.pdf .docx .xlsx .pptx` de hasta 15 MB
+  (`EVIDENCIA_MAX_MB`), revisando extensión y firma; los de Office se convierten a PDF con LibreOffice (`SOFFICE_BIN`).
+  Sin LibreOffice o si falla la conversión, la interfaz ofrece el enlace (Plan B). La tabla `evidencia` distingue `origen`
+  `ARCHIVO`/`URL` y guarda `url_vista` para Drive.
+- Carpeta de cada recomendación: `/Evidencias/[Licenciatura]/[Ciclo]/Informe-[semestre]/Rec-[NN]/`, nombres generados por el sistema.
+- Estados `BORRADOR → EN_REVISION → APROBADO / DEVUELTO`; las correcciones van sobre la misma versión (como D5).
+  El Administrador puede **validar, devolver y reabrir aunque el ciclo haya cerrado**; la coordinación sigue bloqueada por HU-18.
+  La reapertura se guarda en `revision_informe` como `DEVUELTO` con su motivo.
+- `editable` y `bloqueo` los calcula solo el backend. Otra licenciatura responde 404 (no se revela que el informe exista).
+- El Plan de Mejora no se toca: el informe tiene sus propias reglas (`informes/reglas.ts`).
+- Endpoints de la base: `GET /informes` (filtros `estado`, `licenciaturaId`, `cicloId`, `periodo`), `GET /informes/mio`,
+  `GET /informes/:id` y `GET /evidencias/:id/archivo`. El `id` de un informe es su `version_informe_id`.
+
 ## Bases de datos existentes
 Cada cambio de esquema tiene su script en `db/migraciones/`. En desarrollo es más fácil recrear la base:
 `podman compose down`, `podman volume rm ssm-backend_ssm-db`, `podman compose up -d db correo` y `npm run seed`.
