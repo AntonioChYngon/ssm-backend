@@ -56,6 +56,8 @@ export type RecomendacionEnvio = {
   metas: number;
   /** Metas con fecha compromiso y % esperado (hitos de HU-12). */
   metasConfiguradas: number;
+  /** HU-04 · metas medibles: cuántas metas no expresan ninguna cifra o porcentaje. */
+  metasSinCifra: number;
   areaResponsable: string | null;
   fechaCumplimiento: string | null;
 };
@@ -66,6 +68,7 @@ export const faltantes = (r: RecomendacionEnvio, vigenciaInicio: string, vigenci
   if (r.acciones === 0) falta.push('acciones para atender la recomendación');
   if (r.metas === 0) falta.push('metas');
   else if (r.metasConfiguradas === 0) falta.push('al menos una meta con fecha y % esperado');
+  if (r.metasSinCifra > 0) falta.push('una cifra o porcentaje en cada meta (las metas deben ser medibles)');
   if (!r.areaResponsable?.trim()) falta.push('área responsable');
   if (!r.fechaCumplimiento) falta.push('fecha de cumplimiento');
   else if (r.fechaCumplimiento < vigenciaInicio || r.fechaCumplimiento > vigenciaFin) falta.push('fecha de cumplimiento dentro del ciclo');
@@ -119,8 +122,39 @@ export const validarMetas = (metas: MetaConfigurada[], desde: string, hasta: str
   });
 };
 
-// TODO(HU-04): "Metas medibles": decidir con el equipo cómo validar que una meta sea cuantitativa
-// (por ejemplo, exigir un número o un porcentaje en el texto).
+/**
+ * HU-04 · "Metas medibles": una meta es cuantitativa si expresa al menos una cifra
+ * ("80% de la planta docente", "3 optativas nuevas"). Se exige al enviar, no al guardar el borrador.
+ */
+export const esMetaCuantitativa = (texto: string) => /\d/.test(texto);
+
+/** Meta capturada en la pantalla del plan: fecha y % son opcionales en el borrador, pero van juntos. */
+export type MetaBorrador = { descripcion: string; fechaCompromiso?: string | null; porcentajeEsperado?: number | null };
+
+/**
+ * Valida las metas que llegan con la recomendación (captura directa en la pantalla del plan).
+ * Fecha compromiso y % esperado se pueden dejar vacíos en el borrador, pero si se escribe uno se exige el otro,
+ * y las metas configuradas siguen las mismas reglas que la pestaña Metas (HU-12).
+ */
+export const validarMetasBorrador = (metas: MetaBorrador[], desde: string, hasta: string) => {
+  let anterior: { n: number; fecha: string } | null = null;
+  metas.forEach((m, i) => {
+    const n = i + 1;
+    const conFecha = Boolean(m.fechaCompromiso);
+    const conPorcentaje = m.porcentajeEsperado !== null && m.porcentajeEsperado !== undefined;
+    if (conFecha !== conPorcentaje) throw new BadRequestException(`Completa la fecha compromiso y el % esperado de la meta ${n}, o deja ambos vacíos.`);
+    if (!conFecha) return;
+    const fecha = m.fechaCompromiso as string;
+    if (!FECHA.test(fecha)) throw new BadRequestException(`Elige una fecha válida para la meta ${n}.`);
+    if (fecha <= desde || fecha >= hasta) throw new BadRequestException(`La fecha de la meta ${n} debe ser posterior al ${desde} y anterior al ${hasta}.`);
+    const porcentaje = m.porcentajeEsperado as number;
+    if (!Number.isInteger(porcentaje) || porcentaje < 1 || porcentaje > 99) {
+      throw new BadRequestException(`El % esperado de la meta ${n} debe ser un número entero entre 1 y 99.`);
+    }
+    if (anterior && fecha <= anterior.fecha) throw new BadRequestException(`La fecha de la meta ${n} debe ser posterior a la de la meta ${anterior.n}.`);
+    anterior = { n, fecha };
+  });
+};
 
 /**
  * HU-05: texto del aviso de devolución con el motivo general y cada observación ligada a su recomendación,

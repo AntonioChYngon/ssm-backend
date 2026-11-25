@@ -98,7 +98,8 @@ export const generarPdfPlan = (plan: PlanPdf): Buffer => {
   const abrirPagina = () => {
     comandos = [];
     paginas.push(comandos);
-    comandos.push(texto(MARGEN, 558, 'Reporte del plan de mejora', 15, '0.02 0.20 0.38'));
+    // HU-04: el reporte en tabla se titula "Plan de Mejora Continua" (Anexo 1).
+    comandos.push(texto(MARGEN, 558, 'Plan de Mejora Continua', 15, '0.02 0.20 0.38'));
     comandos.push(texto(MARGEN, 540, `${plan.licenciatura} · Ciclo ${plan.ciclo} · ${plan.organismo}`, 9));
     comandos.push(texto(MARGEN, 525, `Estado: ${plan.estado.replaceAll('_', ' ')} · Última actualización: ${plan.actualizado}`, 8));
     comandos.push(texto(MARGEN, 511, `Generado: ${new Intl.DateTimeFormat('es-MX', { dateStyle: 'long', timeZone: 'America/Mexico_City' }).format(new Date())}`, 7, '0.36 0.40 0.44'));

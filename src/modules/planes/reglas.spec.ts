@@ -4,6 +4,7 @@ import {
   cicloActivo,
   claveTexto,
   esEditable,
+  esMetaCuantitativa,
   faltantes,
   hoyEnMexico,
   inicioHitos,
@@ -16,6 +17,7 @@ import {
   validarEnvio,
   validarFechaCumplimiento,
   validarMetas,
+  validarMetasBorrador,
   validarVigencia,
   verificarCicloAbierto,
   verificarTransicion,
@@ -70,7 +72,7 @@ describe('HU-04 / HU-05 · flujo de estados', () => {
 });
 
 describe('HU-04 · validarEnvio', () => {
-  const completa = { numero: 1, acciones: 1, metas: 2, metasConfiguradas: 2, areaResponsable: 'Coordinación', fechaCumplimiento: '2027-06-30' };
+  const completa = { numero: 1, acciones: 1, metas: 2, metasConfiguradas: 2, metasSinCifra: 0, areaResponsable: 'Coordinación', fechaCumplimiento: '2027-06-30' };
 
   it('acepta un plan con recomendaciones completas', () => {
     expect(() => validarEnvio([completa], inicio, fin)).not.toThrow();
@@ -186,5 +188,45 @@ describe('HU-18 · ciclos de acreditación', () => {
   it('calcula el día con la hora de la Ciudad de México', () => {
     // 02:00 UTC del 1 de enero todavía es 31 de diciembre en la Ciudad de México.
     expect(hoyEnMexico(new Date('2027-01-01T02:00:00Z'))).toBe('2026-12-31');
+  });
+});
+
+describe('HU-04 · metas capturadas en la pantalla del plan', () => {
+  const desde = '2026-11-25';
+  const hasta = '2029-11-28';
+
+  it('acepta metas sin fecha ni % (borrador) y metas completas en orden', () => {
+    expect(() => validarMetasBorrador([{ descripcion: 'Diagnóstico al 100%' }], desde, hasta)).not.toThrow();
+    expect(() => validarMetasBorrador([
+      { descripcion: 'Meta A', fechaCompromiso: '2027-06-30', porcentajeEsperado: 40 },
+      { descripcion: 'Meta B', fechaCompromiso: null, porcentajeEsperado: null },
+      { descripcion: 'Meta C', fechaCompromiso: '2028-06-30', porcentajeEsperado: 80 },
+    ], desde, hasta)).not.toThrow();
+  });
+
+  it('exige fecha y % juntos', () => {
+    expect(() => validarMetasBorrador([{ descripcion: 'Meta', fechaCompromiso: '2027-06-30' }], desde, hasta)).toThrow('Completa la fecha compromiso y el % esperado de la meta 1');
+    expect(() => validarMetasBorrador([{ descripcion: 'Meta', porcentajeEsperado: 50 }], desde, hasta)).toThrow(BadRequestException);
+  });
+
+  it('aplica las reglas de HU-12: rango de fechas, % de 1 a 99 y fechas crecientes', () => {
+    expect(() => validarMetasBorrador([{ descripcion: 'M', fechaCompromiso: '2026-11-25', porcentajeEsperado: 50 }], desde, hasta)).toThrow('posterior al 2026-11-25');
+    expect(() => validarMetasBorrador([{ descripcion: 'M', fechaCompromiso: '2027-01-01', porcentajeEsperado: 100 }], desde, hasta)).toThrow('entre 1 y 99');
+    expect(() => validarMetasBorrador([
+      { descripcion: 'M1', fechaCompromiso: '2028-01-01', porcentajeEsperado: 50 },
+      { descripcion: 'M2' },
+      { descripcion: 'M3', fechaCompromiso: '2027-01-01', porcentajeEsperado: 60 },
+    ], desde, hasta)).toThrow('posterior a la de la meta 1');
+  });
+
+  it('una meta es medible si expresa alguna cifra o porcentaje', () => {
+    expect(esMetaCuantitativa('Capacitar al 80% de la planta docente')).toBe(true);
+    expect(esMetaCuantitativa('Abrir 3 optativas nuevas')).toBe(true);
+    expect(esMetaCuantitativa('Mejorar la biblioteca')).toBe(false);
+  });
+
+  it('al enviar, pide metas medibles', () => {
+    const r = { numero: 1, acciones: 1, metas: 1, metasConfiguradas: 1, metasSinCifra: 1, areaResponsable: 'Unidad de Planeación', fechaCumplimiento: '2028-01-01' };
+    expect(faltantes(r, '2024-11-28', '2029-11-28')).toEqual(['una cifra o porcentaje en cada meta (las metas deben ser medibles)']);
   });
 });

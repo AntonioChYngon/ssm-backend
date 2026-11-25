@@ -7,7 +7,7 @@ Si una decisión cambia, edita su sección y anota la nueva fecha; no borres el 
 | # | Tema | Estado | Historia |
 |---|---|---|---|
 | D1 | Correos `@unam.mx` | Vigente: solo dominios de Acatlán | HU-01, HU-02 |
-| D2 | Metas medibles | Propuesta, sin implementar | HU-04 |
+| D2 | Metas medibles | **Implementada con una regla más simple** (D8): cada meta incluye al menos una cifra | HU-04 |
 | D3 | Avance que cuenta el resumen | Propuesta, sin implementar | HU-15 |
 | D4.1 | Descripción del hito | Propuesta, sin implementar | HU-12 |
 | D4.2 | Observación "atendida" | Propuesta, sin implementar | HU-05, HU-08 |
@@ -15,6 +15,7 @@ Si una decisión cambia, edita su sección y anota la nueva fecha; no borres el 
 | D5 | Corregir un plan DEVUELTO | Implementada (se corrige sobre la misma versión) | HU-04, HU-05 |
 | D6 | Catálogo base | Reemplazada: los catálogos salen de Catálogos.xlsx (`db/catalogos_base.sql`) | Todas |
 | D7 | Ciclo de acreditación por licenciatura | Implementada en HU-18 | HU-04, HU-06, HU-16, HU-18 |
+| D8 | Metas medibles y fecha/% en la captura del plan | Implementada | HU-04, HU-12 |
 
 > Las propuestas D2–D4 se discutieron en el Sprint 1 pero su código quedó en la rama `hu-04-plan`, que no se unió.
 > Antes de implementarlas, confírmenlas contra `Historias de usuario corregida.docx`.
@@ -81,6 +82,17 @@ Los catálogos reales vienen de **Catálogos.xlsx**: `db/catalogos/generar_catal
   Ninguna carpeta se borra: las de ciclos anteriores quedan para consulta.
 - Se puede corregir el ciclo mientras la coordinación no haya capturado nada; la licenciatura no cambia.
 - Endpoints (solo Administradora): `GET /ciclos`, `POST /ciclos`, `PATCH /ciclos/:cicloId`, `POST /ciclos/:cicloId/carpeta`.
+
+## D8 · Metas medibles y fecha/% en la captura del plan (HU-04, HU-12)
+- **Metas medibles:** una meta es cuantitativa si expresa al menos una cifra ("Capacitar al 80% de la planta docente",
+  "Abrir 3 optativas nuevas"). Se exige al **enviar** el plan, no al guardar el borrador. Reemplaza la propuesta D2,
+  que solo aceptaba porcentajes. Es reversible: la regla vive en `esMetaCuantitativa()` (backend) y `esMedible()` (frontend).
+- **Fecha compromiso y % esperado desde la pantalla del plan:** cada meta del formulario trae sus campos de fecha y %.
+  Son opcionales en el borrador, pero van juntos (si se llena uno se pide el otro) y siguen las reglas de HU-12.
+  La pestaña *Metas* sigue funcionando igual; las dos pantallas editan los mismos datos.
+- API: `metas` en `POST /ciclos/:id/plan/recomendaciones` y `PUT /recomendaciones/:id` acepta `{ descripcion, fechaCompromiso, porcentajeEsperado }`
+  (`null` vacía, ausente conserva lo configurado en Metas) y también el formato anterior de solo texto.
+- En discusión con el equipo (25/11/2026): si la pestaña *Metas* se conserva o se retira.
 
 ## Bases de datos existentes
 Cada cambio de esquema tiene su script en `db/migraciones/`. En desarrollo es más fácil recrear la base:
