@@ -1,16 +1,23 @@
 import { BadRequestException, ConflictException } from '@nestjs/common';
 import { EstadoVersion } from '../../common/enums';
 import {
+  cicloActivo,
   claveTexto,
   esEditable,
   faltantes,
+  hoyEnMexico,
   inicioHitos,
   limpiarLista,
   limpiarListaOpcional,
+  MENSAJE_CICLO_FINALIZADO,
   mensajeDevolucion,
+  nombreCiclo,
+  rutaCarpetaCiclo,
   validarEnvio,
   validarFechaCumplimiento,
   validarMetas,
+  validarVigencia,
+  verificarCicloAbierto,
   verificarTransicion,
 } from './reglas';
 
@@ -137,5 +144,47 @@ describe('mensajeDevolucion (HU-05)', () => {
 
   it('sin observaciones solo lleva el motivo', () => {
     expect(mensajeDevolucion('Incompleto', [], recomendaciones)).toBe('La Administración devolvió tu plan de mejora. Motivo: Incompleto');
+  });
+});
+
+describe('HU-18 · ciclos de acreditación', () => {
+  const vigencia = { fechaEmision: '2024-11-28', vigenciaInicio: '2024-11-28', vigenciaFin: '2029-11-28' };
+
+  it('acepta una vigencia de exactamente 5 años', () => {
+    expect(() => validarVigencia(vigencia)).not.toThrow();
+  });
+
+  it('rechaza vigencias de más de 5 años, invertidas, con fechas inexistentes o con emisión posterior al fin', () => {
+    expect(() => validarVigencia({ ...vigencia, vigenciaFin: '2029-11-29' })).toThrow(BadRequestException);
+    expect(() => validarVigencia({ ...vigencia, vigenciaFin: '2024-11-28' })).toThrow(BadRequestException);
+    expect(() => validarVigencia({ ...vigencia, vigenciaInicio: '2025-02-30' })).toThrow(BadRequestException);
+    expect(() => validarVigencia({ ...vigencia, fechaEmision: '2030-01-01' })).toThrow(BadRequestException);
+  });
+
+  it('el nombre por defecto son los años de la vigencia y no admite caracteres de ruta', () => {
+    expect(nombreCiclo(undefined, '2024-11-28', '2029-11-28')).toBe('2024-2029');
+    expect(nombreCiclo('  Reacreditación   2024 ', '2024-11-28', '2029-11-28')).toBe('Reacreditación 2024');
+    expect(() => nombreCiclo('2024/2029', '2024-11-28', '2029-11-28')).toThrow(BadRequestException);
+  });
+
+  it('el ciclo sigue activo hasta su fecha de fin, inclusive, y solo si está VIGENTE', () => {
+    expect(cicloActivo({ estado: 'VIGENTE', vigenciaFin: '2029-11-28' }, '2029-11-28')).toBe(true);
+    expect(cicloActivo({ estado: 'VIGENTE', vigenciaFin: '2029-11-28' }, '2029-11-29')).toBe(false);
+    expect(cicloActivo({ estado: 'HISTORICO', vigenciaFin: '2029-11-28' }, '2026-01-01')).toBe(false);
+  });
+
+  it('bloquea la captura al terminar el ciclo con el mensaje de la historia', () => {
+    expect(() => verificarCicloAbierto({ estado: 'VIGENTE', vigenciaFin: '2025-01-01' }, '2026-01-01')).toThrow(MENSAJE_CICLO_FINALIZADO);
+    expect(() => verificarCicloAbierto({ estado: 'VIGENTE', vigenciaFin: '2029-11-28' }, '2026-01-01')).not.toThrow();
+  });
+
+  it('arma la ruta /Evidencias/[Licenciatura]/[ciclo] sin separadores peligrosos', () => {
+    expect(rutaCarpetaCiclo('Actuaría', '2024-2029')).toEqual(['Evidencias', 'Actuaría', '2024-2029']);
+    expect(rutaCarpetaCiclo('../Otra: Lic', '2024-2029')).toEqual(['Evidencias', '-Otra- Lic', '2024-2029']);
+  });
+
+  it('calcula el día con la hora de la Ciudad de México', () => {
+    // 02:00 UTC del 1 de enero todavía es 31 de diciembre en la Ciudad de México.
+    expect(hoyEnMexico(new Date('2027-01-01T02:00:00Z'))).toBe('2026-12-31');
   });
 });

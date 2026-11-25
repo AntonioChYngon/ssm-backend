@@ -70,6 +70,10 @@ export class CicloAcreditacion {
   @JoinColumn({ name: 'organismo_id' })
   organismo: OrganismoAcreditador;
 
+  /** HU-18: nombre visible y de la carpeta, p. ej. "2024-2029". */
+  @Column({ type: 'varchar', length: 40 })
+  nombre: string;
+
   /** Fechas DATE como texto YYYY-MM-DD (dateStrings). */
   @Column({ name: 'fecha_emision', type: 'date' })
   fechaEmision: string;
@@ -85,6 +89,16 @@ export class CicloAcreditacion {
 
   @Column({ name: 'referencia_constancia', type: 'varchar', length: 255, nullable: true })
   referenciaConstancia: string | null;
+
+  /** HU-18: carpeta de evidencias del ciclo (ruta /Evidencias/... y enlace, si el proveedor lo da). */
+  @Column({ name: 'carpeta_ruta', type: 'varchar', length: 500, nullable: true })
+  carpetaRuta: string | null;
+
+  @Column({ name: 'carpeta_url', type: 'varchar', length: 500, nullable: true })
+  carpetaUrl: string | null;
+
+  @Column({ name: 'creado_en', type: 'datetime', insert: false, update: false })
+  creadoEn: Date;
 }
 
 @Entity('version_plan')

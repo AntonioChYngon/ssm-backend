@@ -22,8 +22,8 @@ SET @admin := (
 -- que el seed carga antes que este archivo. Aquí solo se usan.
 
 -- ---------- Ciclos de acreditación vigentes (28/11/2024 – 28/11/2029) ----------
-INSERT INTO ciclo_acreditacion (licenciatura_id, organismo_id, fecha_emision, vigencia_inicio, vigencia_fin, referencia_constancia)
-SELECT l.licenciatura_id, o.organismo_id, '2024-11-28', '2024-11-28', '2029-11-28', CONCAT('Constancia de prueba ', l.clave)
+INSERT INTO ciclo_acreditacion (licenciatura_id, organismo_id, nombre, fecha_emision, vigencia_inicio, vigencia_fin, referencia_constancia)
+SELECT l.licenciatura_id, o.organismo_id, '2024-2029', '2024-11-28', '2024-11-28', '2029-11-28', CONCAT('Constancia de prueba ', l.clave)
 FROM licenciatura l
 JOIN organismo_acreditador o ON o.siglas = CASE l.clave WHEN 'DER' THEN 'CONAED' WHEN 'ARQ' THEN 'ANPADEH' ELSE 'CIEES' END
 WHERE l.clave IN ('ACT', 'DER', 'ECO', 'ARQ');

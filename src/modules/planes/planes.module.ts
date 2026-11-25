@@ -36,6 +36,7 @@ import {
 import { DataSource, EntityManager, In, Repository } from 'typeorm';
 import { Roles, UsuarioActual, UsuarioToken } from '../../common/auth';
 import { EstadoVersion, Rol } from '../../common/enums';
+import { Licenciatura } from '../../database/entities';
 import {
   AccionRecomendacion,
   AreaResponsable,
@@ -53,23 +54,29 @@ import {
 } from '../../database/plan.entities';
 import { AuditoriaService } from '../auditoria/auditoria.module';
 import { NotificacionesService } from '../notificaciones/notificaciones.module';
+import { proveedorCarpetas } from './carpetas';
+import { CiclosController, CiclosService } from './ciclos';
 import { generarPdfPlan } from './pdf';
 import {
+  cicloActivo,
   claveTexto,
   esEditable,
+  hoyEnMexico,
+  MENSAJE_CICLO_FINALIZADO,
   inicioHitos,
   limpiarListaOpcional,
   mensajeDevolucion,
   validarEnvio,
   validarFechaCumplimiento,
   validarMetas,
+  verificarCicloAbierto,
   verificarTransicion,
 } from './reglas';
 
 // ---------- Contrato (debe coincidir con ssm-frontend/src/lib/types.ts) ----------
 
 export type ItemCatalogo = { id: string; nombre: string };
-export type Catalogos = { categorias: ItemCatalogo[]; areas: ItemCatalogo[]; organismos: ItemCatalogo[] };
+export type Catalogos = { categorias: ItemCatalogo[]; areas: ItemCatalogo[]; organismos: ItemCatalogo[]; licenciaturas: ItemCatalogo[] };
 
 export type PlanResumen = {
   id: string;
@@ -120,7 +127,18 @@ export type PlanDetalle = PlanResumen & {
   revisiones: RevisionResumen[];
 };
 
-export type CicloResumen = { id: string; licenciatura: string; organismo: string; vigenciaInicio: string; vigenciaFin: string };
+export type CicloResumen = {
+  id: string;
+  /** HU-18: p. ej. "2024-2029". */
+  nombre: string;
+  licenciatura: string;
+  organismo: string;
+  vigenciaInicio: string;
+  vigenciaFin: string;
+  /** false cuando ya pasó la fecha de fin: la captura queda bloqueada con `mensaje`. */
+  activo: boolean;
+  mensaje: string | null;
+};
 export type MiPlan = { ciclo: CicloResumen; plan: PlanDetalle | null };
 
 /** "Guardar borrador": Categoría, Indicador y Recomendación son obligatorios; el resto se exige al enviar. */
@@ -167,7 +185,8 @@ const fechaCorta = (fecha: Date | null | undefined) =>
 
 const ultimaFecha = (v: VersionPlan) => [v.aprobadoEn, v.enviadoEn, v.creadoEn].filter((f): f is Date => Boolean(f)).sort((a, b) => b.getTime() - a.getTime())[0] ?? null;
 
-const etiquetaCiclo = (c: CicloAcreditacion) => `${c.vigenciaInicio.slice(0, 4)}–${c.vigenciaFin.slice(0, 4)}`;
+// HU-18: el nombre del ciclo ("2024-2029") identifica el periodo en avisos y reportes.
+const etiquetaCiclo = (c: CicloAcreditacion) => c.nombre;
 
 const nombreOrganismo = (o: OrganismoAcreditador) => o.siglas ?? o.nombre;
 
@@ -187,6 +206,7 @@ export class PlanesService {
     @InjectRepository(AreaResponsable) private readonly areas: Repository<AreaResponsable>,
     @InjectRepository(OrganismoAcreditador) private readonly organismos: Repository<OrganismoAcreditador>,
     @InjectRepository(CicloAcreditacion) private readonly ciclos: Repository<CicloAcreditacion>,
+    @InjectRepository(Licenciatura) private readonly licenciaturas: Repository<Licenciatura>,
     @InjectRepository(VersionPlan) private readonly versiones: Repository<VersionPlan>,
     @InjectRepository(Recomendacion) private readonly recomendaciones: Repository<Recomendacion>,
     @InjectRepository(RevisionPlan) private readonly revisiones: Repository<RevisionPlan>,
@@ -197,13 +217,14 @@ export class PlanesService {
 
   /** Catálogos para los selectores del formulario. */
   async catalogos(): Promise<Catalogos> {
-    const [categorias, areas, organismos] = await Promise.all([
+    const [categorias, areas, organismos, licenciaturas] = await Promise.all([
       this.categorias.find({ where: { activa: true }, order: { orden: 'ASC' } }),
       this.areas.find({ where: { activa: true }, order: { nombre: 'ASC' } }),
       this.organismos.find({ where: { activo: true }, order: { nombre: 'ASC' } }),
+      this.licenciaturas.find({ where: { activa: true }, order: { nombre: 'ASC' } }),
     ]);
     const item = (x: { id: string; nombre: string }) => ({ id: x.id, nombre: x.nombre });
-    return { categorias: categorias.map(item), areas: areas.map(item), organismos: organismos.map(item) };
+    return { categorias: categorias.map(item), areas: areas.map(item), organismos: organismos.map(item), licenciaturas: licenciaturas.map(item) };
   }
 
   // ----- Consultas -----
@@ -238,7 +259,16 @@ export class PlanesService {
     const ciclo = await this.cicloVigente(usuario);
     const version = await this.versiones.findOne({ where: { cicloId: ciclo.id }, order: { numeroVersion: 'DESC' }, relations: { ciclo: { licenciatura: true, organismo: true } } });
     return {
-      ciclo: { id: ciclo.id, licenciatura: ciclo.licenciatura.nombre, organismo: nombreOrganismo(ciclo.organismo), vigenciaInicio: ciclo.vigenciaInicio, vigenciaFin: ciclo.vigenciaFin },
+      ciclo: {
+        id: ciclo.id,
+        nombre: ciclo.nombre,
+        licenciatura: ciclo.licenciatura.nombre,
+        organismo: nombreOrganismo(ciclo.organismo),
+        vigenciaInicio: ciclo.vigenciaInicio,
+        vigenciaFin: ciclo.vigenciaFin,
+        activo: cicloActivo(ciclo, hoyEnMexico()),
+        mensaje: cicloActivo(ciclo, hoyEnMexico()) ? null : MENSAJE_CICLO_FINALIZADO,
+      },
       plan: version ? await this.detalle(version) : null,
     };
   }
@@ -250,7 +280,8 @@ export class PlanesService {
     const ciclo = await this.ciclos.findOneBy({ id: cicloId });
     if (!ciclo) throw new NotFoundException('Ciclo de acreditación no encontrado.');
     verificarLicenciatura(usuario, ciclo.licenciaturaId);
-    if (ciclo.estado !== 'VIGENTE') throw new ConflictException('Solo se captura el plan de un ciclo vigente.');
+    // HU-18: con la vigencia terminada (o un ciclo histórico) ya no se captura.
+    verificarCicloAbierto(ciclo, hoyEnMexico());
     if (!(await this.categorias.existsBy({ id: dto.categoriaId, activa: true }))) throw new NotFoundException('La categoría no existe.');
     if (dto.fechaCumplimiento) validarFechaCumplimiento(dto.fechaCumplimiento, ciclo.vigenciaInicio, ciclo.vigenciaFin);
     if (dto.areaResponsable?.trim() && !(await this.areas.existsBy({ nombre: dto.areaResponsable.trim(), activa: true }))) {
@@ -307,6 +338,7 @@ export class PlanesService {
     if (!rec) throw new NotFoundException('Recomendación no encontrada.');
     const version = rec.indicador.versionPlan;
     verificarLicenciatura(usuario, version.ciclo.licenciaturaId);
+    verificarCicloAbierto(version.ciclo, hoyEnMexico());
     verificarTransicion(version.estado, 'editar');
 
     await this.dataSource.transaction(async (tx) => {
@@ -333,6 +365,7 @@ export class PlanesService {
   async enviar(usuario: UsuarioToken, versionId: string): Promise<PlanDetalle> {
     const version = await this.versionConCiclo(versionId);
     verificarLicenciatura(usuario, version.ciclo.licenciaturaId);
+    verificarCicloAbierto(version.ciclo, hoyEnMexico());
     verificarTransicion(version.estado, 'enviar');
     const plan = await this.detalle(version);
     validarEnvio(
@@ -409,6 +442,7 @@ export class PlanesService {
     if (!rec) throw new NotFoundException('Recomendación no encontrada.');
     const version = rec.indicador.versionPlan;
     verificarLicenciatura(usuario, version.ciclo.licenciaturaId);
+    verificarCicloAbierto(version.ciclo, hoyEnMexico());
     verificarTransicion(version.estado, 'editar');
     const metas = dto.metas.map((m) => ({ ...m, descripcion: m.descripcion.trim() }));
     validarMetas(metas, inicioHitos(version.creadoEn, version.ciclo.vigenciaInicio), rec.fechaCumplimiento ?? version.ciclo.vigenciaFin);
@@ -695,9 +729,9 @@ export class PlanesController {
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Categoria, AreaResponsable, OrganismoAcreditador, CicloAcreditacion, VersionPlan, Recomendacion, RevisionPlan]),
+    TypeOrmModule.forFeature([Categoria, AreaResponsable, OrganismoAcreditador, CicloAcreditacion, VersionPlan, Recomendacion, RevisionPlan, Licenciatura]),
   ],
-  controllers: [PlanesController],
-  providers: [PlanesService],
+  controllers: [PlanesController, CiclosController],
+  providers: [PlanesService, CiclosService, proveedorCarpetas],
 })
 export class PlanesModule {}
