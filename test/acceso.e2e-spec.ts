@@ -157,6 +157,11 @@ describe('Acceso (HU-01) y endpoints base de HU-02, HU-04 y HU-15', () => {
       // Sin otro login: el límite es de 5 por minuto y la suite ya usa los demás.
       const perfil = await api().get('/api/auth/me').set('Authorization', `Bearer ${cambio.body.token}`).expect(200);
       expect(perfil.body.debeCambiarContrasena).toBe(false);
+      expect(Date.parse(perfil.body.creadoEn)).not.toBeNaN();
+
+      // Mi perfil · actividad reciente: solo lo que hizo esta cuenta, lo más nuevo primero.
+      const actividad = await api().get('/api/auth/actividad').set('Authorization', `Bearer ${cambio.body.token}`).expect(200);
+      expect(actividad.body.map((a: { descripcion: string }) => a.descripcion)).toEqual(['Cambió su contraseña', 'Inicio de sesión']);
     });
   });
 
