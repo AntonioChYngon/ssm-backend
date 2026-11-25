@@ -139,3 +139,55 @@ export const mensajeDevolucion = (
   const encabezado = `La Administración devolvió tu plan de mejora. Motivo: ${motivo.trim()}`;
   return lineas.length ? `${encabezado}\n\nObservaciones:\n${lineas.join('\n')}` : encabezado;
 };
+
+// ---------- HU-18 · Ciclos de acreditación ----------
+
+export const VIGENCIA_MAXIMA_ANIOS = 5;
+export const MENSAJE_CICLO_FINALIZADO = 'El ciclo de acreditación ha finalizado. Contacte a la Unidad de Planeación para iniciar un nuevo ciclo.';
+
+const esFechaReal = (fecha: string) => FECHA.test(fecha) && !Number.isNaN(Date.parse(`${fecha}T00:00:00Z`)) && new Date(`${fecha}T00:00:00Z`).toISOString().startsWith(fecha);
+const sumarAnios = (fecha: string, anios: number) => `${Number(fecha.slice(0, 4)) + anios}${fecha.slice(4)}`;
+
+/** Fecha de hoy (AAAA-MM-DD) en la hora de la FES Acatlán, no en la del servidor. */
+export const hoyEnMexico = (ahora = new Date()) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mexico_City' }).format(ahora);
+
+/** Identificadores BIGINT que llegan como texto en la URL o el cuerpo. */
+export const validarId = (id: string, campo: string) => {
+  if (!/^\d{1,19}$/.test(id)) throw new BadRequestException(`El identificador de ${campo} no es válido.`);
+  return id;
+};
+
+/** Vigencia capturada por la Administradora: fechas reales, fin después del inicio, máximo 5 años y emisión antes del fin. */
+export const validarVigencia = ({ fechaEmision, vigenciaInicio, vigenciaFin }: { fechaEmision: string; vigenciaInicio: string; vigenciaFin: string }) => {
+  if (![fechaEmision, vigenciaInicio, vigenciaFin].every(esFechaReal)) {
+    throw new BadRequestException('Escribe fechas válidas (AAAA-MM-DD) para la emisión y la vigencia.');
+  }
+  if (vigenciaFin <= vigenciaInicio) throw new BadRequestException('La fecha de fin debe ser posterior a la fecha de inicio.');
+  if (vigenciaFin > sumarAnios(vigenciaInicio, VIGENCIA_MAXIMA_ANIOS)) {
+    throw new BadRequestException(`El ciclo no puede durar más de ${VIGENCIA_MAXIMA_ANIOS} años.`);
+  }
+  if (fechaEmision > vigenciaFin) throw new BadRequestException('La fecha de emisión de la constancia debe ser anterior al fin de la vigencia.');
+};
+
+/** Nombre del ciclo: el que escriba la Administradora o, si lo deja vacío, "AAAA-AAAA" con los años de la vigencia. */
+export const nombreCiclo = (nombre: string | undefined, vigenciaInicio: string, vigenciaFin: string) => {
+  const limpio = nombre?.trim().replace(/\s+/g, ' ');
+  if (!limpio) return `${vigenciaInicio.slice(0, 4)}-${vigenciaFin.slice(0, 4)}`;
+  if (limpio.length > 40) throw new BadRequestException('El nombre del ciclo admite hasta 40 caracteres.');
+  if (/[\\/:*?"<>|]/.test(limpio)) throw new BadRequestException('El nombre del ciclo no puede llevar \\ / : * ? " < > |, porque se usa como nombre de carpeta.');
+  return limpio;
+};
+
+/** Un ciclo VIGENTE sigue activo hasta su fecha de fin, inclusive. */
+export const cicloActivo = (ciclo: { estado: string; vigenciaFin: string }, hoy: string) => ciclo.estado === 'VIGENTE' && hoy <= ciclo.vigenciaFin;
+
+/** Bloqueo automático al terminar la vigencia (HU-18): sin captura de plan, avances ni evidencias. */
+export const verificarCicloAbierto = (ciclo: { estado: string; vigenciaFin: string }, hoy: string) => {
+  if (!cicloActivo(ciclo, hoy)) throw new ConflictException(MENSAJE_CICLO_FINALIZADO);
+};
+
+/** Segmento de carpeta seguro: sin separadores ni caracteres que Windows o Drive rechazan. */
+const segmento = (texto: string) => texto.trim().replace(/[\\/:*?"<>|]/g, '-').replace(/\s+/g, ' ').replace(/^\.+/, '') || 'sin-nombre';
+
+/** Estructura de HU-18: /Evidencias/[Licenciatura]/[20XX-20XX]/ */
+export const rutaCarpetaCiclo = (licenciatura: string, nombre: string) => ['Evidencias', segmento(licenciatura), segmento(nombre)];

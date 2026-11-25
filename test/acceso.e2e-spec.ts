@@ -14,6 +14,7 @@ describe('Acceso (HU-01) y endpoints base de HU-02, HU-04 y HU-15', () => {
   let coordinacionDerecho: string;
   let usuarioPruebaId: string | null = null;
   const usuariosTemporales: string[] = [];
+  const ciclosCreados: string[] = [];
 
   beforeAll(async () => {
     app = await crearApp();
@@ -27,6 +28,7 @@ describe('Acceso (HU-01) y endpoints base de HU-02, HU-04 y HU-15', () => {
   });
 
   afterAll(async () => {
+    if (ciclosCreados.length) await dataSource.query('DELETE FROM ciclo_acreditacion WHERE ciclo_id IN (?)', [ciclosCreados]);
     for (const id of usuariosTemporales) {
       await dataSource.query('UPDATE asignacion_usuario SET activa = FALSE, desactivada_en = CURRENT_TIMESTAMP WHERE usuario_id = ? AND activa = TRUE', [id]);
       await dataSource.query('UPDATE usuario SET activo = FALSE WHERE usuario_id = ?', [id]);
@@ -309,6 +311,64 @@ describe('Acceso (HU-01) y endpoints base de HU-02, HU-04 y HU-15', () => {
         expect(avisoValidacion).toBeDefined();
         notificacionIds.push(String(avisoValidacion.id));
       });
+    });
+  });
+
+  describe('HU-18 · ciclos de acreditación', () => {
+    const idDe = async (tabla: 'licenciatura' | 'organismo_acreditador', columna: string, valor: string) => {
+      const filas = await dataSource.query(`SELECT ${tabla === 'licenciatura' ? 'licenciatura_id' : 'organismo_id'} AS id FROM ${tabla} WHERE ${columna} = ? LIMIT 1`, [valor]);
+      return String(filas[0].id);
+    };
+
+    it('solo el Administrador administra los ciclos', async () => {
+      await api().get('/api/ciclos').set('Authorization', `Bearer ${captura}`).expect(403);
+      const r = await api().get('/api/ciclos').set('Authorization', `Bearer ${admin}`).expect(200);
+      expect(r.body.find((c: { licenciatura: { nombre: string } }) => c.licenciatura.nombre === 'Actuaría')).toMatchObject({ nombre: '2024-2029', activo: true });
+    });
+
+    it('inicia un ciclo con su carpeta, impide otro activo y valida la vigencia', async () => {
+      const licenciaturaId = await idDe('licenciatura', 'clave', 'SOC');
+      const organismoId = await idDe('organismo_acreditador', 'siglas', 'CIEES');
+      const datos = { licenciaturaId, organismoId, fechaEmision: '2026-01-10', vigenciaInicio: '2026-01-15', vigenciaFin: '2031-01-15' };
+
+      await api().post('/api/ciclos').set('Authorization', `Bearer ${admin}`).send({ ...datos, vigenciaFin: '2031-01-16' }).expect(400);
+      const creado = await api().post('/api/ciclos').set('Authorization', `Bearer ${admin}`).send(datos).expect(201);
+      ciclosCreados.push(String(creado.body.id));
+      expect(creado.body).toMatchObject({ nombre: '2026-2031', estado: 'VIGENTE', activo: true, plan: null });
+      expect(creado.body.carpeta.ruta).toBe('/Evidencias/Sociología/2026-2031');
+
+      const otro = await api().post('/api/ciclos').set('Authorization', `Bearer ${admin}`).send({ ...datos, fechaEmision: '2026-02-01' }).expect(409);
+      expect(otro.body.message).toContain('Podrás iniciar uno nuevo cuando termine');
+
+      const corregido = await api().patch(`/api/ciclos/${creado.body.id}`).set('Authorization', `Bearer ${admin}`).send({ ...datos, nombre: 'Reacreditación 2026' }).expect(200);
+      expect(corregido.body.carpeta.ruta).toBe('/Evidencias/Sociología/Reacreditación 2026');
+    });
+
+    it('un ciclo con la vigencia ya vencida se registra como histórico', async () => {
+      const licenciaturaId = await idDe('licenciatura', 'clave', 'SOC');
+      const organismoId = await idDe('organismo_acreditador', 'siglas', 'CIEES');
+      const r = await api().post('/api/ciclos').set('Authorization', `Bearer ${admin}`)
+        .send({ licenciaturaId, organismoId, fechaEmision: '2019-05-01', vigenciaInicio: '2019-05-01', vigenciaFin: '2024-05-01' }).expect(201);
+      ciclosCreados.push(String(r.body.id));
+      expect(r.body).toMatchObject({ nombre: '2019-2024', estado: 'HISTORICO', activo: false });
+    });
+
+    it('al terminar la vigencia bloquea la captura con el mensaje de la historia', async () => {
+      const mio = await api().get('/api/planes/mio').set('Authorization', `Bearer ${captura}`).expect(200);
+      expect(mio.body.ciclo).toMatchObject({ nombre: '2024-2029', activo: true, mensaje: null });
+      const cicloActual = mio.body.ciclo.id as string;
+      await dataSource.query('UPDATE ciclo_acreditacion SET vigencia_fin = ? WHERE ciclo_id = ?', ['2025-01-01', cicloActual]);
+      try {
+        const vencido = await api().get('/api/planes/mio').set('Authorization', `Bearer ${captura}`).expect(200);
+        expect(vencido.body.ciclo.activo).toBe(false);
+        expect(vencido.body.ciclo.mensaje).toContain('El ciclo de acreditación ha finalizado');
+        const { body: catalogos } = await api().get('/api/catalogos').set('Authorization', `Bearer ${captura}`).expect(200);
+        const r = await api().post(`/api/ciclos/${cicloActual}/plan/recomendaciones`).set('Authorization', `Bearer ${captura}`)
+          .send({ categoriaId: catalogos.categorias[0].id, indicador: 'Fuera de vigencia', descripcion: 'Fuera de vigencia' }).expect(409);
+        expect(r.body.message).toContain('Contacte a la Unidad de Planeación');
+      } finally {
+        await dataSource.query('UPDATE ciclo_acreditacion SET vigencia_fin = ? WHERE ciclo_id = ?', ['2029-11-28', cicloActual]);
+      }
     });
   });
 

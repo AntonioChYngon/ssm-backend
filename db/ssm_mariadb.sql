@@ -82,21 +82,30 @@ CREATE TABLE organismo_acreditador (
     activo          BOOLEAN NOT NULL DEFAULT TRUE
 ) ENGINE=InnoDB;
 
+-- HU-18: un ciclo por licenciatura (su organismo y su vigencia de hasta 5 años).
+--   * nombre: el que se muestra y nombra la carpeta, p. ej. "2024-2029".
+--   * carpeta_ruta / carpeta_url: carpeta de evidencias /Evidencias/[Licenciatura]/[nombre]/ (nunca se borra).
+--   * licenciatura_vigente: emula un índice parcial para permitir un solo ciclo VIGENTE por licenciatura.
 CREATE TABLE ciclo_acreditacion (
     ciclo_id              BIGINT AUTO_INCREMENT PRIMARY KEY,
     licenciatura_id       BIGINT NOT NULL,
     organismo_id          BIGINT NOT NULL,
+    nombre                VARCHAR(40) NOT NULL,
     fecha_emision         DATE NOT NULL,
     vigencia_inicio       DATE NOT NULL,
     vigencia_fin          DATE NOT NULL,
     estado                VARCHAR(20) NOT NULL DEFAULT 'VIGENTE',
     referencia_constancia VARCHAR(255),
+    carpeta_ruta          VARCHAR(500) NULL,
+    carpeta_url           VARCHAR(500) NULL,
     creado_en             DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    licenciatura_vigente  BIGINT AS (IF(estado = 'VIGENTE', licenciatura_id, NULL)) STORED,
     CONSTRAINT fk_ciclo_licenciatura FOREIGN KEY (licenciatura_id) REFERENCES licenciatura(licenciatura_id),
     CONSTRAINT fk_ciclo_organismo FOREIGN KEY (organismo_id) REFERENCES organismo_acreditador(organismo_id),
     CONSTRAINT ck_ciclo_fechas CHECK (vigencia_inicio <= vigencia_fin AND fecha_emision <= vigencia_fin),
     CONSTRAINT ck_ciclo_estado CHECK (estado IN ('VIGENTE', 'CERRADO', 'HISTORICO')),
-    CONSTRAINT uq_ciclo_lic_organismo_emision UNIQUE (licenciatura_id, organismo_id, fecha_emision)
+    CONSTRAINT uq_ciclo_lic_organismo_emision UNIQUE (licenciatura_id, organismo_id, fecha_emision),
+    UNIQUE KEY uq_ciclo_vigente_por_licenciatura (licenciatura_vigente)
 ) ENGINE=InnoDB;
 
 -- Las cuentas de Captura/Auxiliar pertenecen a una coordinación exclusivamente.

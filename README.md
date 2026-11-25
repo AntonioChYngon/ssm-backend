@@ -28,6 +28,10 @@ npm test                 # validación de dominio y contraseña
 - Cuando cambie el Excel: `python -m pip install openpyxl` y `python db/catalogos/generar_catalogos.py "ruta/Catálogos.xlsx"`. Regenera el SQL y `src/database/cuentas-coordinaciones.ts`; sube ambos en un PR.
 - Con `SEED_CUENTAS_COORDINACIONES=true` y `SEED_CUENTAS_PASSWORD` en el `.env`, el seed crea una cuenta **Captura** por coordinación con su correo institucional y contraseña temporal. Actuaría usa la cuenta `SEED_CAPTURA_*` (por defecto actuaria@). Las licenciaturas que comparten correo en el Excel (progpol@, prohum@) solo reciben una cuenta: el seed lista cuáles quedaron pendientes para que el Administrador las dé de alta con un correo propio.
 
+## Ciclos de acreditación (HU-18)
+
+Cada licenciatura tiene su ciclo con su organismo y una vigencia de hasta 5 años; solo uno activo a la vez. Al crearlo se genera la carpeta `/Evidencias/[Licenciatura]/[20XX-20XX]/` (proveedor `local`, en `CARPETAS_DIR`; Google Drive llegará con `CARPETAS_PROVEEDOR=drive`). Al pasar la fecha de fin, la captura del plan queda bloqueada. Detalle y razones en [`docs/decisiones.md`](docs/decisiones.md) (D7). En una base existente aplica `db/migraciones/2026-11-26_ciclos_hu18.sql`.
+
 ## Contraseñas temporales
 
 Las cuentas creadas por el Administrador, las que él restablece y las de coordinación del seed nacen con `debe_cambiar_contrasena = TRUE`. Mientras siga así, el token solo sirve para `GET /auth/me` y `POST /auth/cambiar-contrasena` (lo demás responde 403) y el frontend lleva a la persona a `/cambiar-contrasena`. Al cambiarla, la respuesta trae un token nuevo y la sesión continúa. En una base existente aplica `db/migraciones/2026-11-25_cambio_obligatorio_contrasena.sql`.
@@ -57,6 +61,8 @@ Prefijo `/api`. Todas piden `Authorization: Bearer <token>`, salvo las públicas
 | `PUT /recomendaciones/:id/metas` (Configuración de Metas) | Captura, Auxiliar | HU-12 |
 | `POST /planes/:id/enviar` | Captura, Auxiliar | HU-04 |
 | `POST /planes/:id/validar` · `POST /planes/:id/devolver` | Administrador | HU-05 |
+| `GET /ciclos` · `POST /ciclos` · `PATCH /ciclos/:cicloId` | Administrador | HU-18 |
+| `POST /ciclos/:cicloId/carpeta` (crear la carpeta de un ciclo que no la tiene) | Administrador | HU-18 |
 | `GET /notificaciones` · `PATCH /notificaciones/:id/leida` | cualquier sesión | HU-10 |
 
 El resto de los módulos (informes, evidencias, reportes) se está migrando al esquema del equipo; ver `src/modules/_por-migrar/LEEME.md`.
