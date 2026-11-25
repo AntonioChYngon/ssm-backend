@@ -19,15 +19,23 @@ export type UsuarioToken = {
   rol: Rol;
   coordinacionId: string | null;
   licenciaturaId: string | null;
+  /** La cuenta usa una contraseña temporal y debe cambiarla antes de usar el sistema. */
+  cambioPendiente?: boolean;
 };
 
 type RequestConUsuario = Request & { usuario?: UsuarioToken };
 
 const PUBLICO = 'ssm:publico';
 const ROLES = 'ssm:roles';
+const PERMITIDO_CON_CAMBIO_PENDIENTE = 'ssm:permitido-con-cambio-pendiente';
+
+export const MENSAJE_CAMBIO_PENDIENTE = 'Debes cambiar tu contraseña temporal antes de continuar.';
 
 /** Marca una ruta como accesible sin sesión (login, recuperación). */
 export const Publico = () => SetMetadata(PUBLICO, true);
+
+/** Rutas que sí puede usar una cuenta con contraseña temporal (consultar su sesión y cambiarla). */
+export const PermitidoConCambioPendiente = () => SetMetadata(PERMITIDO_CON_CAMBIO_PENDIENTE, true);
 
 /** Restringe una ruta a ciertos roles. Sin este decorador, cualquier usuario autenticado puede entrar. */
 export const Roles = (...roles: Rol[]) => SetMetadata(ROLES, roles);
@@ -39,7 +47,7 @@ export const UsuarioActual = createParamDecorator((_: unknown, ctx: ExecutionCon
   return request.usuario;
 });
 
-/** Guard global: valida el JWT y los roles requeridos. */
+/** Guard global: valida el JWT, el cambio de contraseña pendiente y los roles requeridos. */
 @Injectable()
 export class AuthGuard implements CanActivate {
   constructor(
@@ -59,6 +67,10 @@ export class AuthGuard implements CanActivate {
       request.usuario = await this.jwt.verifyAsync<UsuarioToken>(token);
     } catch {
       throw new UnauthorizedException('Tu sesión expiró. Vuelve a iniciar sesión.');
+    }
+
+    if (request.usuario.cambioPendiente && !this.reflector.getAllAndOverride<boolean>(PERMITIDO_CON_CAMBIO_PENDIENTE, targets)) {
+      throw new ForbiddenException(MENSAJE_CAMBIO_PENDIENTE);
     }
 
     const roles = this.reflector.getAllAndOverride<Rol[] | undefined>(ROLES, targets);

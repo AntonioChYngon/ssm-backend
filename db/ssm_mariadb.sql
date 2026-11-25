@@ -34,6 +34,8 @@ CREATE TABLE usuario (
     apellido        VARCHAR(120) NOT NULL,
     correo          VARCHAR(254) NOT NULL UNIQUE,
     hash_contrasena VARCHAR(255) NOT NULL,
+    -- TRUE mientras la cuenta use una contraseña temporal: solo puede cambiarla hasta que lo haga.
+    debe_cambiar_contrasena BOOLEAN NOT NULL DEFAULT FALSE,
     activo          BOOLEAN NOT NULL DEFAULT TRUE,
     creado_en       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     actualizado_en  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -436,4 +438,4 @@ INSERT INTO categoria (nombre, orden) VALUES
     ('Vinculación y Extensión', 7),
     ('Investigación', 8),
     ('Infraestructura y Equipamiento', 9),
-    ('Gestión y Administración', 10);
+    ('Gestión Administrativa y Financiamiento', 10);

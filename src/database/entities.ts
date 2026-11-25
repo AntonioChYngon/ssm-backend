@@ -77,6 +77,10 @@ export class Usuario {
   @Column({ name: 'hash_contrasena', length: 255, select: false })
   hashContrasena: string;
 
+  /** TRUE mientras use una contraseña temporal: el AuthGuard solo le deja cambiarla. */
+  @Column({ name: 'debe_cambiar_contrasena', type: 'boolean', default: false })
+  debeCambiarContrasena: boolean;
+
   @Column({ type: 'boolean' })
   activo: boolean;
 

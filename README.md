@@ -17,10 +17,24 @@ API del **Sistema de Seguimiento de Mejora (SSM)** de la FES Acatlán, UNAM. Pro
 ```bash
 cp .env.example .env     # DB_PASSWORD de ssm_app, JWT_SECRET y contraseñas SEED_*
 npm install
-npm run seed             # Actuaría + su coordinación, un Administrador y un usuario Captura
+npm run seed             # catálogos reales, un Administrador, un Captura y (opcional) las cuentas de coordinación
 npm run start:dev        # http://localhost:3001/api  ·  Swagger en /api/docs
 npm test                 # validación de dominio y contraseña
 ```
+
+## Catálogos y cuentas de coordinación
+
+- `db/catalogos_base.sql` trae las 19 licenciaturas (con su coordinación), 10 categorías, 9 organismos y 216 áreas responsables de **Catálogos.xlsx**. El seed lo carga siempre y se puede repetir sin duplicar.
+- Cuando cambie el Excel: `python -m pip install openpyxl` y `python db/catalogos/generar_catalogos.py "ruta/Catálogos.xlsx"`. Regenera el SQL y `src/database/cuentas-coordinaciones.ts`; sube ambos en un PR.
+- Con `SEED_CUENTAS_COORDINACIONES=true` y `SEED_CUENTAS_PASSWORD` en el `.env`, el seed crea una cuenta **Captura** por coordinación con su correo institucional y contraseña temporal. Actuaría usa la cuenta `SEED_CAPTURA_*` (por defecto actuaria@). Las licenciaturas que comparten correo en el Excel (progpol@, prohum@) solo reciben una cuenta: el seed lista cuáles quedaron pendientes para que el Administrador las dé de alta con un correo propio.
+
+## Contraseñas temporales
+
+Las cuentas creadas por el Administrador, las que él restablece y las de coordinación del seed nacen con `debe_cambiar_contrasena = TRUE`. Mientras siga así, el token solo sirve para `GET /auth/me` y `POST /auth/cambiar-contrasena` (lo demás responde 403) y el frontend lleva a la persona a `/cambiar-contrasena`. Al cambiarla, la respuesta trae un token nuevo y la sesión continúa. En una base existente aplica `db/migraciones/2026-11-25_cambio_obligatorio_contrasena.sql`.
+
+## Avisos (HU-05, HU-08, HU-11)
+
+Cada aviso del flujo del plan se guarda para la campana de la aplicación y se envía por correo al mismo tiempo, con un enlace a la pantalla donde se atiende. Sin `SMTP_HOST` el correo solo se escribe en la consola; con Mailpit (`SMTP_HOST=localhost`, `SMTP_PORT=1025`) se ve en http://localhost:8025. Si el correo falla, el aviso de la campana queda igual con estado `FALLIDA`.
 
 ## Endpoints disponibles
 

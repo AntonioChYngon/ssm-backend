@@ -18,33 +18,14 @@ SET @admin := (
 );
 
 -- ---------- Catálogos ----------
-INSERT IGNORE INTO licenciatura (clave, nombre, modalidad) VALUES
-  ('ACT', 'Actuaría', 'Escolarizada'),
-  ('DER', 'Derecho', 'Escolarizada'),
-  ('ECO', 'Economía', 'Escolarizada'),
-  ('ARQ', 'Arquitectura', 'Escolarizada'),
-  ('PED', 'Pedagogía', 'Abierta y a Distancia');
-
-INSERT IGNORE INTO coordinacion (licenciatura_id, nombre)
-SELECT licenciatura_id, CONCAT('Coordinación de ', nombre) FROM licenciatura;
-
-INSERT IGNORE INTO organismo_acreditador (nombre, siglas) VALUES
-  ('Organismo Acreditador de Prueba A', 'OAP-A'),
-  ('Organismo Acreditador de Prueba B', 'OAP-B');
-
-INSERT IGNORE INTO area_responsable (nombre) VALUES
-  ('Secretaría General'),
-  ('Secretaría Académica'),
-  ('Departamento de Servicios Escolares'),
-  ('Biblioteca'),
-  ('Centro de Cómputo'),
-  ('Unidad de Planeación');
+-- Licenciaturas, coordinaciones, organismos y áreas vienen del catálogo real (db/catalogos_base.sql),
+-- que el seed carga antes que este archivo. Aquí solo se usan.
 
 -- ---------- Ciclos de acreditación vigentes (28/11/2024 – 28/11/2029) ----------
 INSERT INTO ciclo_acreditacion (licenciatura_id, organismo_id, fecha_emision, vigencia_inicio, vigencia_fin, referencia_constancia)
 SELECT l.licenciatura_id, o.organismo_id, '2024-11-28', '2024-11-28', '2029-11-28', CONCAT('Constancia de prueba ', l.clave)
 FROM licenciatura l
-JOIN organismo_acreditador o ON o.siglas = IF(l.clave = 'DER', 'OAP-B', 'OAP-A')
+JOIN organismo_acreditador o ON o.siglas = CASE l.clave WHEN 'DER' THEN 'CONAED' WHEN 'ARQ' THEN 'ANPADEH' ELSE 'CIEES' END
 WHERE l.clave IN ('ACT', 'DER', 'ECO', 'ARQ');
 
 -- ---------- Planes (ARQ se queda sin plan a propósito) ----------
@@ -102,10 +83,10 @@ SELECT recomendacion_id, 'Cumplir el 100% de las actividades programadas antes d
 
 INSERT INTO recomendacion_area (recomendacion_id, area_id)
 SELECT r.recomendacion_id, a.area_id FROM recomendacion r
-JOIN area_responsable a ON a.nombre = 'Secretaría Académica';
+JOIN area_responsable a ON a.nombre = 'Unidad de Planeación';
 
 -- Área responsable como texto abierto (Plan de Mejora).
-UPDATE recomendacion SET area_responsable = 'Secretaría Académica' WHERE area_responsable IS NULL;
+UPDATE recomendacion SET area_responsable = 'Unidad de Planeación' WHERE area_responsable IS NULL;
 
 -- Metas configuradas (fecha compromiso y % esperado) para los planes aprobados.
 UPDATE meta m

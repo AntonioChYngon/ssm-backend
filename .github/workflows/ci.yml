@@ -37,6 +37,8 @@ jobs:
       SEED_CAPTURA_CORREO: captura.ci@acatlan.unam.mx
       SEED_CAPTURA_PASSWORD: CapturaCi2026
       SEED_DATOS_DESARROLLO: 'true'
+      SEED_CUENTAS_COORDINACIONES: 'true'
+      SEED_CUENTAS_PASSWORD: CuentasCi2026
 
     steps:
       - uses: actions/checkout@v4

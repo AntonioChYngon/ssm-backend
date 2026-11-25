@@ -1,16 +1,20 @@
-// Avisos dentro de la aplicación (tabla notificacion). Los usa el flujo de validación del Plan de Mejora.
+// Avisos del sistema: se guardan para la campana de la aplicación (tabla notificacion) y se envían por correo
+// institucional (HU-05, HU-08, HU-11). Si el correo falla, el aviso In-App queda igual y se marca FALLIDA.
 import { Controller, ForbiddenException, Get, Global, Injectable, Logger, Module, NotFoundException, Param, Patch } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { InjectRepository, TypeOrmModule } from '@nestjs/typeorm';
 import { IsNull, Repository } from 'typeorm';
 import { UsuarioActual, UsuarioToken } from '../../common/auth';
 import { Rol } from '../../common/enums';
 import { AsignacionUsuario, Notificacion } from '../../database/entities';
+import { CorreoService } from '../correo/correo.module';
 
 /** Tipos guardados en notificacion.tipo. */
 export type TipoAviso = 'PLAN_ENVIADO' | 'PLAN_VALIDADO' | 'PLAN_DEVUELTO';
 
-type Aviso = { tipo: TipoAviso; titulo: string; mensaje: string };
+export type Aviso = { tipo: TipoAviso; titulo: string; mensaje: string };
+type Destinatario = { usuarioId: string; correo: string };
 
 // ---------- Contrato (debe coincidir con Notificacion en ssm-frontend/src/lib/types.ts) ----------
 
@@ -27,6 +31,11 @@ export type NotificacionListado = {
 const TIPO_FRONT: Record<string, NotificacionListado['tipo']> = { PLAN_ENVIADO: 'PLAN', PLAN_VALIDADO: 'PLAN', PLAN_DEVUELTO: 'DEVOLUCION' };
 const ENLACE: Record<string, string> = { PLAN_ENVIADO: '/admin/planes', PLAN_VALIDADO: '/licenciatura/dashboard', PLAN_DEVUELTO: '/licenciatura/plan' };
 
+/** Texto del correo: el mismo mensaje del aviso In-App más el enlace a la pantalla donde se atiende. */
+export const cuerpoCorreo = (aviso: Aviso, frontendUrl: string) =>
+  `${aviso.mensaje}\n\nConsúltalo en el sistema: ${frontendUrl.replace(/\/+$/, '')}${ENLACE[aviso.tipo] ?? '/'}\n\n` +
+  'Este es un mensaje automático del Sistema de Seguimiento a la Mejora Continua (FES Acatlán). No respondas a este correo.';
+
 const fechaCorta = (fecha: Date | null) =>
   fecha ? new Intl.DateTimeFormat('es-MX', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Mexico_City' }).format(fecha) : '';
 
@@ -37,6 +46,8 @@ export class NotificacionesService {
   constructor(
     @InjectRepository(Notificacion) private readonly repo: Repository<Notificacion>,
     @InjectRepository(AsignacionUsuario) private readonly asignaciones: Repository<AsignacionUsuario>,
+    private readonly correo: CorreoService,
+    private readonly config: ConfigService,
   ) {}
 
   /** A todos los Administradores con cuenta activa. */
@@ -46,8 +57,9 @@ export class NotificacionesService {
       .innerJoin('a.usuario', 'u')
       .where('a.activa = TRUE AND u.activo = TRUE AND a.rolCodigo = :rol', { rol: Rol.ADMINISTRADOR })
       .select('a.usuarioId', 'usuarioId')
-      .getRawMany<{ usuarioId: string }>();
-    await this.crear(destinatarios.map((d) => String(d.usuarioId)), aviso);
+      .addSelect('u.correo', 'correo')
+      .getRawMany<Destinatario>();
+    await this.crear(destinatarios, aviso);
   }
 
   /** A Captura y Auxiliar activos de la coordinación de una licenciatura. */
@@ -59,14 +71,30 @@ export class NotificacionesService {
       .where('a.activa = TRUE AND u.activo = TRUE AND c.licenciaturaId = :licenciaturaId', { licenciaturaId })
       .andWhere('a.rolCodigo IN (:...roles)', { roles: [Rol.CAPTURA, Rol.AUXILIAR] })
       .select('a.usuarioId', 'usuarioId')
-      .getRawMany<{ usuarioId: string }>();
-    await this.crear(destinatarios.map((d) => String(d.usuarioId)), aviso);
+      .addSelect('u.correo', 'correo')
+      .getRawMany<Destinatario>();
+    await this.crear(destinatarios, aviso);
   }
 
-  private async crear(usuarios: string[], aviso: Aviso) {
-    if (!usuarios.length) return;
+  /** Envía el correo a cada destinatario y guarda el aviso In-App con el resultado del envío. */
+  private async crear(destinatarios: Destinatario[], aviso: Aviso) {
+    if (!destinatarios.length) return;
+    const texto = cuerpoCorreo(aviso, this.config.get('FRONTEND_URL', 'http://localhost:3000'));
+    const envios = await Promise.allSettled(
+      destinatarios.map((d) => this.correo.enviar({ para: d.correo, asunto: `SSM · ${aviso.titulo}`, texto })),
+    );
+    envios.forEach((envio, i) => {
+      if (envio.status === 'rejected') this.logger.error(`No se pudo enviar el correo ${aviso.tipo} a ${destinatarios[i].correo}`, envio.reason as Error);
+    });
     try {
-      await this.repo.insert(usuarios.map((usuarioId) => ({ usuarioId, ...aviso, estado: 'ENVIADA' as const, enviadaEn: new Date() })));
+      await this.repo.insert(
+        destinatarios.map((d, i) => ({
+          usuarioId: String(d.usuarioId),
+          ...aviso,
+          estado: envios[i].status === 'fulfilled' ? ('ENVIADA' as const) : ('FALLIDA' as const),
+          enviadaEn: new Date(),
+        })),
+      );
     } catch (error) {
       // Un aviso fallido no debe revertir el cambio de estado del plan.
       this.logger.error(`No se pudo registrar el aviso ${aviso.tipo}`, error as Error);
