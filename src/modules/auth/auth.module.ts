@@ -57,6 +57,8 @@ export type PerfilUsuario = {
   coordinacion: string | null;
   licenciatura: string | null;
   activo: boolean;
+  /** Fecha de alta en el sistema (ISO 8601). */
+  creadoEn: string;
   /** TRUE si debe cambiar su contraseña temporal antes de usar el sistema. */
   debeCambiarContrasena: boolean;
 };
@@ -108,6 +110,7 @@ export class AuthService {
       coordinacion: asignacion.coordinacion?.nombre ?? null,
       licenciatura: asignacion.coordinacion?.licenciatura?.nombre ?? null,
       activo: usuario.activo,
+      creadoEn: usuario.creadoEn.toISOString(),
       debeCambiarContrasena: usuario.debeCambiarContrasena,
     };
   }
@@ -145,6 +148,10 @@ export class AuthService {
 
     await this.auditoria.registrar({ sub: usuario.id, rol: asignacion.rolCodigo }, { entidad: 'usuario', entidadId: usuario.id, campo: 'sesion', nuevo: 'INICIO_SESION' });
     return { token: await this.firmar(usuario, asignacion), usuario: this.perfil(usuario, asignacion) };
+  }
+
+  actividad(token: UsuarioToken) {
+    return this.auditoria.actividadDe(token.sub);
   }
 
   async me(token: UsuarioToken): Promise<PerfilUsuario> {
@@ -236,6 +243,13 @@ export class AuthController {
   @Get('me')
   me(@UsuarioActual() usuario: UsuarioToken) {
     return this.auth.me(usuario);
+  }
+
+  /** Mi perfil · últimos 10 movimientos de la propia cuenta (inicios de sesión, cambios, envíos). */
+  @ApiBearerAuth()
+  @Get('actividad')
+  actividad(@UsuarioActual() usuario: UsuarioToken) {
+    return this.auth.actividad(usuario);
   }
 
   @ApiBearerAuth()

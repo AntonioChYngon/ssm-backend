@@ -11,7 +11,7 @@ Si una decisión cambia, edita su sección y anota la nueva fecha; no borres el 
 | D3 | Avance que cuenta el resumen | Propuesta, sin implementar | HU-15 |
 | D4.1 | Descripción del hito | Propuesta, sin implementar | HU-12 |
 | D4.2 | Observación "atendida" | Propuesta, sin implementar | HU-05, HU-08 |
-| D4.3 | Canal de notificación | Propuesta, sin implementar (hoy todo aviso va por correo e In-App) | HU-10, HU-11, HU-05 |
+| D4.3 | Canal de notificación | **Descartada**: la HU-10 corregida exige canal dual (correo + aviso en el sistema) | HU-10, HU-11, HU-05 |
 | D5 | Corregir un plan DEVUELTO | Implementada (se corrige sobre la misma versión) | HU-04, HU-05 |
 | D6 | Catálogo base | Reemplazada: los catálogos salen de Catálogos.xlsx (`db/catalogos_base.sql`) | Todas |
 | D7 | Ciclo de acreditación por licenciatura | Implementada en HU-18 | HU-04, HU-06, HU-16, HU-18 |
@@ -50,14 +50,10 @@ Con `db/datos_desarrollo.sql` los resultados esperados no cambian (DER 1/1/2, EC
 - **Interfaz:** en `/licenciatura/observaciones`, cada observación muestra la casilla "Atendida" y, al marcarla, un campo de respuesta.
   El botón "Enviar a validación" muestra cuántas faltan.
 
-## D4.3 · Canal de notificación (HU-10, HU-11, HU-05)
-- `usuario.canal_notificacion`: `CORREO`, `IN_APP` o `AMBOS` (por defecto `AMBOS`). Se elige en `/perfil`.
-- `notificacion.canal`: el canal que se usó para cada aviso, decidido al crearlo:
-  - **Avisos críticos → siempre `AMBOS`**, sin importar la preferencia: devolución con observaciones, validación,
-    vencimiento de la fecha de cumplimiento y "entrega completa" al Administrador (HU-05 y HU-11 exigen correo).
-  - **Avisos no críticos** (recordatorios de hitos) → la preferencia del usuario.
-- La campana muestra los avisos con canal `IN_APP` o `AMBOS`; el correo se envía para `CORREO` o `AMBOS`.
-- Un solo servicio decide el canal (`resolverCanal(tipo, preferencia)`), así agregar un canal nuevo no toca a quien envía el aviso.
+## D4.3 · Canal de notificación (descartada, 25/11/2026)
+Se proponía que cada usuario eligiera en Mi perfil recibir avisos por correo, en el sistema o ambos. La HU-10 corregida
+pide **canal dual** fijo (correo institucional + aviso en el sistema), así que todos los avisos salen por los dos canales
+(así funciona desde el parche 10) y el selector se quitó de Mi perfil.
 
 ## D5 · Corregir un plan DEVUELTO (HU-04, HU-05)
 Se corrige **sobre la misma versión** (sin crear una nueva). Así los ids de las recomendaciones no cambian y cada observación

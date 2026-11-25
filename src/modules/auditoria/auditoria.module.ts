@@ -5,6 +5,7 @@ import { Repository } from 'typeorm';
 import { Roles } from '../../common/auth';
 import { Rol } from '../../common/enums';
 import { RegistroAuditoria } from '../../database/entities';
+import { Actividad, describirActividad } from './actividad';
 
 type Cambio = { entidad: string; entidadId: string; campo: string; anterior?: string | null; nuevo?: string | null };
 
@@ -30,6 +31,12 @@ export class AuditoriaService {
       // La auditoría no debe tumbar la operación principal, pero sí dejar rastro en el log.
       this.logger.error(`No se pudo registrar auditoría de ${cambio.entidad}#${cambio.entidadId}`, error as Error);
     }
+  }
+
+  /** Últimos movimientos que hizo la propia persona (Mi perfil). */
+  async actividadDe(usuarioId: string, limite = 10): Promise<Actividad[]> {
+    const registros = await this.repo.find({ where: { usuarioId }, order: { ocurridoEn: 'DESC', id: 'DESC' }, take: limite });
+    return registros.map(describirActividad);
   }
 
   listar(filtros: { entidad?: string; desde?: string; hasta?: string; limite?: number }) {
