@@ -152,8 +152,9 @@ describe('Acceso (HU-01) y endpoints base de HU-02, HU-04 y HU-15', () => {
       const cambio = await api().post('/api/auth/cambiar-contrasena').set('Authorization', `Bearer ${temporal}`).send({ actual: 'Temporal2026', nueva: 'Definitiva2026' }).expect(200);
       expect(cambio.body.usuario.debeCambiarContrasena).toBe(false);
       await api().get('/api/notificaciones').set('Authorization', `Bearer ${cambio.body.token}`).expect(200);
-      const nueva = await api().post('/api/auth/login').send({ correo, contrasena: 'Definitiva2026' }).expect(200);
-      expect(nueva.body.usuario.debeCambiarContrasena).toBe(false);
+      // Sin otro login: el límite es de 5 por minuto y la suite ya usa los demás.
+      const perfil = await api().get('/api/auth/me').set('Authorization', `Bearer ${cambio.body.token}`).expect(200);
+      expect(perfil.body.debeCambiarContrasena).toBe(false);
     });
   });
 

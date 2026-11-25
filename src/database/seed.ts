@@ -138,7 +138,16 @@ const main = async () => {
   console.log('Seed listo.');
 };
 
-main().catch((error) => {
-  console.error('✖ Seed falló:', error instanceof Error ? error.message : error);
+main().catch((error: unknown) => {
+  // Un error de conexión llega sin mensaje (AggregateError): se muestran el código y los errores internos.
+  const detalle = (e: unknown): string => {
+    if (!(e instanceof Error)) return String(e);
+    const codigo = (e as { code?: string }).code;
+    const internos = e instanceof AggregateError ? e.errors.map(detalle).join(' | ') : '';
+    return [codigo, e.message, internos].filter(Boolean).join(' · ') || e.name;
+  };
+  const texto = detalle(error);
+  console.error('✖ Seed falló:', texto);
+  if (/ECONNREFUSED|ETIMEDOUT/.test(texto)) console.error('  ¿Está corriendo la base? Revisa `podman ps` y levántala con `podman compose up -d db correo`.');
   process.exit(1);
 });
