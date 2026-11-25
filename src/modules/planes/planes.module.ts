@@ -19,7 +19,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { InjectRepository, TypeOrmModule } from '@nestjs/typeorm';
-import { Type } from 'class-transformer';
+import { plainToInstance, Transform, Type } from 'class-transformer';
 import {
   ArrayMinSize,
   IsArray,
@@ -60,15 +60,18 @@ import { generarPdfPlan } from './pdf';
 import {
   cicloActivo,
   claveTexto,
+  esMetaCuantitativa,
   esEditable,
   hoyEnMexico,
   MENSAJE_CICLO_FINALIZADO,
   inicioHitos,
+  type MetaBorrador,
   limpiarListaOpcional,
   mensajeDevolucion,
   validarEnvio,
   validarFechaCumplimiento,
   validarMetas,
+  validarMetasBorrador,
   verificarCicloAbierto,
   verificarTransicion,
 } from './reglas';
@@ -142,13 +145,27 @@ export type CicloResumen = {
 export type MiPlan = { ciclo: CicloResumen; plan: PlanDetalle | null };
 
 /** "Guardar borrador": Categoría, Indicador y Recomendación son obligatorios; el resto se exige al enviar. */
+/** Meta capturada en la pantalla del plan. Fecha y % son opcionales en el borrador (null = vaciar). */
+export class MetaBorradorDto {
+  @IsString() @Length(1, 2000) descripcion: string;
+  @IsOptional() @IsDateString({ strict: true }) fechaCompromiso?: string | null;
+  @IsOptional() @IsInt() @Min(1) @Max(99) porcentajeEsperado?: number | null;
+}
+
+/** Acepta el formato anterior (solo texto) y el nuevo (texto, fecha y %). */
+const aMetasBorrador = ({ value }: { value: unknown }) =>
+  Array.isArray(value)
+    ? value.map((m) => plainToInstance(MetaBorradorDto, typeof m === 'string' ? { descripcion: m } : (m as object)))
+    : value;
+
 export class RecomendacionDto {
   @IsString() categoriaId: string;
   @IsString() @Length(3, 2000) indicador: string;
   @IsString() @Length(3, 4000) descripcion: string;
   /** Acciones para atender la recomendación. */
   @IsOptional() @IsArray() @IsString({ each: true }) @MaxLength(4000, { each: true }) acciones?: string[];
-  @IsOptional() @IsArray() @IsString({ each: true }) @MaxLength(2000, { each: true }) metas?: string[];
+  /** HU-04/HU-12: cada meta con su fecha compromiso y % esperado opcionales (también se configuran en Metas). */
+  @IsOptional() @IsArray() @Transform(aMetasBorrador) @ValidateNested({ each: true }) metas?: MetaBorradorDto[];
   @IsOptional() @IsString() @MaxLength(250) areaResponsable?: string;
   @IsOptional() @IsDateString({ strict: true }) fechaCumplimiento?: string;
 }
@@ -294,6 +311,9 @@ export class PlanesService {
         version = await tx.save(tx.create(VersionPlan, { cicloId, numeroVersion: 1, estado: EstadoVersion.BORRADOR, creadoPor: usuario.sub, enviadoEn: null, aprobadoEn: null }));
       }
       verificarTransicion(version.estado, 'editar');
+      const metas = (dto.metas ?? []).map((m) => ({ ...m, descripcion: m.descripcion.trim() })).filter((m) => m.descripcion);
+      // Un plan recién creado puede no traer creadoEn (lo pone la base): se toma la fecha actual.
+      validarMetasBorrador(metas, inicioHitos(version.creadoEn ?? new Date(), ciclo.vigenciaInicio), dto.fechaCumplimiento || ciclo.vigenciaFin);
       const indicador = await this.indicadorPara(tx, version.id, dto.categoriaId, dto.indicador);
 
       const datos = {
@@ -313,7 +333,7 @@ export class PlanesService {
         rec = await tx.save(tx.create(Recomendacion, { ...datos, indicadorId: indicador.id, etiquetaFecha: null, transversal: false, orden: await this.siguienteOrden(tx, 'recomendacion', 'indicador_id', indicador.id) }));
       }
       await this.reemplazarAcciones(tx, rec.id, limpiarListaOpcional(dto.acciones));
-      await this.sincronizarMetas(tx, rec.id, limpiarListaOpcional(dto.metas));
+      await this.sincronizarMetas(tx, rec.id, metas);
       return { versionId: version.id, recId: rec.id, creada: !recomendacionId };
     });
 
@@ -375,6 +395,7 @@ export class PlanesService {
         metas: r.metas.length,
         // HU-12: solo cuentan como hito las metas que ya tienen fecha y % esperado.
         metasConfiguradas: r.metas.filter((m) => m.fechaCompromiso && m.porcentajeEsperado != null).length,
+        metasSinCifra: r.metas.filter((m) => !esMetaCuantitativa(m.descripcion)).length,
         areaResponsable: r.areaResponsable,
         fechaCumplimiento: r.fechaCumplimiento,
       })),
@@ -526,23 +547,34 @@ export class PlanesService {
    * Sincroniza las metas escritas en el formulario sin perder su configuración (fecha y %):
    * primero empareja por texto idéntico, luego reutiliza las restantes en orden y borra o crea las demás.
    */
-  private async sincronizarMetas(tx: EntityManager, recomendacionId: string, descripciones: string[]) {
+  /**
+   * Guarda las metas que llegan con la recomendación conservando su identidad (se emparejan por texto).
+   * Fecha y % : `undefined` = se conservan los configurados en la pestaña Metas; `null` = se vacían; valor = se guardan.
+   */
+  private async sincronizarMetas(tx: EntityManager, recomendacionId: string, metas: MetaBorrador[]) {
     const actuales = await tx.find(Meta, { where: { recomendacionId }, order: { orden: 'ASC' } });
     const libres = [...actuales];
-    const asignadas: (Meta | null)[] = descripciones.map((d) => {
-      const i = libres.findIndex((m) => claveTexto(m.descripcion) === claveTexto(d));
+    const asignadas: (Meta | null)[] = metas.map((m) => {
+      const i = libres.findIndex((x) => claveTexto(x.descripcion) === claveTexto(m.descripcion));
       return i >= 0 ? libres.splice(i, 1)[0]! : null;
     });
     asignadas.forEach((m, i) => {
       if (!m && libres.length) asignadas[i] = libres.shift()!;
     });
     if (libres.length) await tx.delete(Meta, { id: In(libres.map((m) => m.id)) });
+    // Dos pasos para no chocar con UNIQUE (recomendacion_id, orden) y (recomendacion_id, fecha_compromiso).
     const conservadas = asignadas.filter((m): m is Meta => m !== null);
-    for (const [i, m] of conservadas.entries()) await tx.update(Meta, m.id, { orden: 10_000 + i });
-    for (const [i, descripcion] of descripciones.entries()) {
-      const meta = asignadas[i];
-      if (meta) await tx.update(Meta, meta.id, { descripcion, orden: i + 1 });
-      else await tx.insert(Meta, { recomendacionId, descripcion, orden: i + 1, fechaCompromiso: null, porcentajeEsperado: null });
+    for (const [i, m] of conservadas.entries()) await tx.update(Meta, m.id, { orden: 10_000 + i, fechaCompromiso: null });
+    for (const [i, m] of metas.entries()) {
+      const previa = asignadas[i];
+      const valores = {
+        descripcion: m.descripcion,
+        orden: i + 1,
+        fechaCompromiso: m.fechaCompromiso !== undefined ? m.fechaCompromiso || null : previa?.fechaCompromiso ?? null,
+        porcentajeEsperado: m.porcentajeEsperado !== undefined ? m.porcentajeEsperado ?? null : previa?.porcentajeEsperado ?? null,
+      };
+      if (previa) await tx.update(Meta, previa.id, valores);
+      else await tx.insert(Meta, { ...valores, recomendacionId });
     }
   }
 

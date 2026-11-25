@@ -227,6 +227,28 @@ describe('Acceso (HU-01) y endpoints base de HU-02, HU-04 y HU-15', () => {
         expect(r.body.message).toContain('área responsable');
       });
 
+      it('captura la fecha compromiso y el % esperado de cada meta desde la pantalla del plan', async () => {
+        const { body: catalogos } = await api().get('/api/catalogos').set('Authorization', `Bearer ${captura}`).expect(200);
+        const base = { categoriaId: catalogos.categorias[2].id, indicador: 'Indicador de prueba e2e', descripcion: 'Recomendación de prueba e2e' };
+        const url = `/api/recomendaciones/${recomendacionId}`;
+
+        const incompleta = await api().put(url).set('Authorization', `Bearer ${captura}`)
+          .send({ ...base, metas: [{ descripcion: 'Meta 1', fechaCompromiso: '2027-06-30' }] }).expect(400);
+        expect(incompleta.body.message).toContain('Completa la fecha compromiso y el % esperado de la meta 1');
+
+        const r = await api().put(url).set('Authorization', `Bearer ${captura}`).send({
+          ...base,
+          metas: [{ descripcion: 'Meta 1', fechaCompromiso: '2027-06-30', porcentajeEsperado: 50 }, { descripcion: 'Meta 2' }],
+        }).expect(200);
+        const metas = r.body.recomendacionesDetalle.find((x: { id: string }) => x.id === recomendacionId).metas;
+        expect(metas[0]).toMatchObject({ descripcion: 'Meta 1', fechaCompromiso: '2027-06-30', porcentajeEsperado: 50 });
+        expect(metas[1]).toMatchObject({ descripcion: 'Meta 2', fechaCompromiso: null, porcentajeEsperado: null });
+
+        // null vacía la fecha y el %: deja el borrador como estaba para la prueba siguiente.
+        await api().put(url).set('Authorization', `Bearer ${captura}`)
+          .send({ ...base, metas: [{ descripcion: 'Meta 1', fechaCompromiso: null, porcentajeEsperado: null }, { descripcion: 'Meta 2' }] }).expect(200);
+      });
+
       it('completa la recomendación, configura sus metas y la envía', async () => {
         const { body: catalogos } = await api().get('/api/catalogos').set('Authorization', `Bearer ${captura}`).expect(200);
         await api().put(`/api/recomendaciones/${recomendacionId}`).set('Authorization', `Bearer ${captura}`).send({
