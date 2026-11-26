@@ -1,19 +1,22 @@
 // Bloque Informe de Seguimiento: HU-07 (captura), HU-08 (revisión), HU-11 (aviso de entrega).
 // Este archivo solo une las piezas. Cada historia trabaja en su propio archivo para no pisarse:
 //   consulta.service.ts  · base compartida (lectura, permisos, InformeDetalle)
-//   captura.service.ts   · HU-07 (línea A): iniciar, avances, enlaces, enviar          → pendiente
-//   evidencias.service.ts· HU-07 (línea A): subida, conversión, baja                   → pendiente
+//   captura.service.ts   · HU-07: iniciar el semestre, avances, enlaces, quitar evidencias y enviar
+//   evidencias.service.ts· HU-07: subida de archivos y conversión a PDF
 //   revision.service.ts  · HU-08 + HU-11: validar, devolver, reabrir y aviso de entrega
-import { Body, Controller, Get, HttpCode, Module, Param, Post, Query, StreamableFile } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { BadRequestException, Body, Controller, Delete, Get, HttpCode, Module, Param, Post, Put, Query, StreamableFile, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiBearerAuth, ApiConsumes, ApiTags } from '@nestjs/swagger';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Roles, UsuarioActual, UsuarioToken } from '../../common/auth';
 import { Rol } from '../../common/enums';
 import { AvanceRecomendacion, CicloAcreditacion, Evidencia, Informe, RevisionInforme, VersionInforme, VersionPlan } from '../../database/plan.entities';
 import { proveedorCarpetas } from '../planes/carpetas';
+import { CapturaInformesService } from './captura.service';
 import { ConsultaInformesService } from './consulta.service';
-import { DevolverInformeDto, FiltrosInformesDto, ReabrirInformeDto, ValidarInformeDto } from './contrato';
+import { AvanceDto, DevolverInformeDto, EnlaceDto, FiltrosInformesDto, ReabrirInformeDto, ValidarInformeDto } from './contrato';
 import { conversorPdf } from './conversor';
+import { type ArchivoSubido, EvidenciasInformesService, megasEvidencia } from './evidencias.service';
 import { RevisionInformesService } from './revision.service';
 
 const CAPTURA = [Rol.CAPTURA, Rol.AUXILIAR];
@@ -25,6 +28,8 @@ export class InformesController {
   constructor(
     private readonly consulta: ConsultaInformesService,
     private readonly revision: RevisionInformesService,
+    private readonly captura: CapturaInformesService,
+    private readonly evidencias: EvidenciasInformesService,
   ) {}
 
   /** Listado: el Administrador ve todos; Captura y Auxiliar, los de su licenciatura. */
@@ -43,6 +48,56 @@ export class InformesController {
   @Get('informes/:id')
   obtener(@UsuarioActual() usuario: UsuarioToken, @Param('id') id: string) {
     return this.consulta.obtener(usuario, id);
+  }
+
+  // ----- HU-07 · Captura (Captura y Auxiliar) -----
+
+  /** "Iniciar informe del semestre": si ya existe, devuelve el mismo. */
+  @Post('ciclos/:cicloId/informes')
+  @Roles(...CAPTURA)
+  iniciar(@UsuarioActual() usuario: UsuarioToken, @Param('cicloId') cicloId: string) {
+    return this.captura.iniciar(usuario, cicloId);
+  }
+
+  @Put('informes/:id/avances/:recomendacionId')
+  @Roles(...CAPTURA)
+  guardarAvance(@UsuarioActual() usuario: UsuarioToken, @Param('id') id: string, @Param('recomendacionId') recomendacionId: string, @Body() dto: AvanceDto) {
+    return this.captura.guardarAvance(usuario, id, recomendacionId, dto);
+  }
+
+  /** Plan A: archivo (.pdf, .docx, .xlsx, .pptx) en el campo "archivo". Multer lo deja en memoria; nunca toca el disco sin validar. */
+  @Post('informes/:id/avances/:recomendacionId/evidencias')
+  @Roles(...CAPTURA)
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(FileInterceptor('archivo', { limits: { fileSize: megasEvidencia() * 1024 * 1024, files: 1 } }))
+  subirEvidencia(
+    @UsuarioActual() usuario: UsuarioToken,
+    @Param('id') id: string,
+    @Param('recomendacionId') recomendacionId: string,
+    @UploadedFile() archivo: ArchivoSubido | undefined,
+  ) {
+    if (!archivo) throw new BadRequestException('Adjunta un archivo en el campo "archivo".');
+    return this.evidencias.subir(usuario, id, recomendacionId, archivo);
+  }
+
+  /** Plan B: enlace http(s). */
+  @Post('informes/:id/avances/:recomendacionId/enlaces')
+  @Roles(...CAPTURA)
+  agregarEnlace(@UsuarioActual() usuario: UsuarioToken, @Param('id') id: string, @Param('recomendacionId') recomendacionId: string, @Body() dto: EnlaceDto) {
+    return this.captura.agregarEnlace(usuario, id, recomendacionId, dto);
+  }
+
+  @Delete('evidencias/:id')
+  @Roles(...CAPTURA)
+  quitarEvidencia(@UsuarioActual() usuario: UsuarioToken, @Param('id') id: string) {
+    return this.captura.quitarEvidencia(usuario, id);
+  }
+
+  @Post('informes/:id/enviar')
+  @HttpCode(200)
+  @Roles(...CAPTURA)
+  enviar(@UsuarioActual() usuario: UsuarioToken, @Param('id') id: string) {
+    return this.captura.enviar(usuario, id);
   }
 
   // ----- HU-08 · Revisión (solo Administrador) -----
@@ -83,7 +138,7 @@ export class InformesController {
 @Module({
   imports: [TypeOrmModule.forFeature([Informe, VersionInforme, AvanceRecomendacion, Evidencia, RevisionInforme, CicloAcreditacion, VersionPlan])],
   controllers: [InformesController],
-  providers: [ConsultaInformesService, RevisionInformesService, proveedorCarpetas, conversorPdf],
+  providers: [ConsultaInformesService, RevisionInformesService, CapturaInformesService, EvidenciasInformesService, proveedorCarpetas, conversorPdf],
   exports: [ConsultaInformesService],
 })
 export class InformesModule {}
