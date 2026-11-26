@@ -53,6 +53,7 @@ import {
   VersionPlan,
 } from '../../database/plan.entities';
 import { AuditoriaService } from '../auditoria/auditoria.module';
+import { textoMeta, type Instantanea } from '../auditoria/cambios';
 import { NotificacionesService } from '../notificaciones/notificaciones.module';
 import { proveedorCarpetas } from './carpetas';
 import { CiclosController, CiclosService } from './ciclos';
@@ -305,6 +306,9 @@ export class PlanesService {
       throw new BadRequestException('Selecciona un área responsable del catálogo.');
     }
 
+    // HU-03: foto de la recomendación antes de editarla para registrar cada campo que cambie.
+    const antes = recomendacionId ? await this.instantaneaRecomendacion(this.dataSource.manager, recomendacionId) : null;
+
     const { versionId, recId, creada } = await this.dataSource.transaction(async (tx) => {
       let version = await tx.findOne(VersionPlan, { where: { cicloId }, order: { numeroVersion: 'DESC' }, lock: { mode: 'pessimistic_write' } });
       if (!version) {
@@ -337,12 +341,12 @@ export class PlanesService {
       return { versionId: version.id, recId: rec.id, creada: !recomendacionId };
     });
 
-    await this.auditoria.registrar(usuario, {
-      entidad: 'recomendacion',
-      entidadId: recId,
-      campo: creada ? 'creada (borrador)' : 'actualizada (borrador)',
-      nuevo: dto.descripcion.slice(0, 250),
-    });
+    if (creada || !antes) {
+      await this.auditoria.registrar(usuario, { entidad: 'recomendacion', entidadId: recId, campo: 'creada (borrador)', nuevo: dto.descripcion.slice(0, 250) });
+    } else {
+      const despues = await this.instantaneaRecomendacion(this.dataSource.manager, recId);
+      if (despues) await this.auditoria.registrarCambios(usuario, { entidad: 'recomendacion', entidadId: recId, antes, despues });
+    }
     return this.obtener(usuario, versionId);
   }
 
@@ -467,6 +471,7 @@ export class PlanesService {
     verificarTransicion(version.estado, 'editar');
     const metas = dto.metas.map((m) => ({ ...m, descripcion: m.descripcion.trim() }));
     validarMetas(metas, inicioHitos(version.creadoEn, version.ciclo.vigenciaInicio), rec.fechaCumplimiento ?? version.ciclo.vigenciaFin);
+    const metasAntes = (await this.dataSource.getRepository(Meta).find({ where: { recomendacionId }, order: { orden: 'ASC' } })).map(textoMeta);
 
     await this.dataSource.transaction(async (tx) => {
       const actuales = await tx.find(Meta, { where: { recomendacionId } });
@@ -483,11 +488,30 @@ export class PlanesService {
         else await tx.insert(Meta, { ...valores, recomendacionId });
       }
     });
-    await this.auditoria.registrar(usuario, { entidad: 'recomendacion', entidadId: recomendacionId, campo: 'metas configuradas', nuevo: `${metas.length} meta(s)` });
+    await this.auditoria.registrarCambios(usuario, { entidad: 'recomendacion', entidadId: recomendacionId, antes: { metas: metasAntes }, despues: { metas: metas.map(textoMeta) } });
     return this.obtener(usuario, version.id);
   }
 
   // ----- Ayudantes -----
+
+  /** HU-03: valores visibles de una recomendación, con los nombres de campo que se ven en la bitácora. */
+  private async instantaneaRecomendacion(tx: EntityManager, id: string): Promise<Instantanea | null> {
+    const r = await tx.findOne(Recomendacion, {
+      where: { id },
+      relations: { indicador: { categoria: true }, acciones: true, metas: true },
+      order: { acciones: { orden: 'ASC' }, metas: { orden: 'ASC' } },
+    });
+    if (!r) return null;
+    return {
+      'categoría': r.indicador.categoria.nombre,
+      indicador: r.indicador.descripcion,
+      'recomendación': r.descripcion,
+      acciones: r.acciones.map((a) => a.descripcion),
+      metas: r.metas.map(textoMeta),
+      'área responsable': r.areaResponsable,
+      'fecha de cumplimiento': r.fechaCumplimiento,
+    };
+  }
 
   private async cicloVigente(usuario: UsuarioToken) {
     if (!usuario.licenciaturaId) throw new ForbiddenException('Tu cuenta no tiene una licenciatura asignada.');

@@ -6,6 +6,7 @@ import { Roles } from '../../common/auth';
 import { Rol } from '../../common/enums';
 import { RegistroAuditoria } from '../../database/entities';
 import { Actividad, describirActividad } from './actividad';
+import { diferencias, type Instantanea } from './cambios';
 
 type Cambio = { entidad: string; entidadId: string; campo: string; anterior?: string | null; nuevo?: string | null };
 
@@ -33,10 +34,43 @@ export class AuditoriaService {
     }
   }
 
-  /** Últimos movimientos que hizo la propia persona (Mi perfil). */
+  /**
+   * HU-03 · Registro por campo: una fila por cada campo que cambió entre `antes` y `despues`.
+   * Si nada cambió no escribe nada. Devuelve cuántos campos registró.
+   */
+  async registrarCambios(
+    usuario: { sub: string; rol: string },
+    { entidad, entidadId, antes, despues, sufijo }: { entidad: string; entidadId: string; antes: Instantanea; despues: Instantanea; sufijo?: string },
+  ) {
+    const cambios = diferencias(antes, despues, sufijo);
+    if (!cambios.length) return 0;
+    try {
+      await this.repo.insert(
+        cambios.map((c) => ({ usuarioId: usuario.sub, rolCodigo: usuario.rol, entidad, entidadId, campo: c.campo, valorAnterior: c.anterior, valorNuevo: c.nuevo })),
+      );
+    } catch (error) {
+      this.logger.error(`No se pudo registrar auditoría de ${entidad}#${entidadId}`, error as Error);
+    }
+    return cambios.length;
+  }
+
+  /**
+   * Últimos movimientos que hizo la propia persona (Mi perfil). Un mismo guardado deja una fila por campo (HU-03);
+   * aquí se muestran como un solo movimiento.
+   */
   async actividadDe(usuarioId: string, limite = 10): Promise<Actividad[]> {
-    const registros = await this.repo.find({ where: { usuarioId }, order: { ocurridoEn: 'DESC', id: 'DESC' }, take: limite });
-    return registros.map(describirActividad);
+    const registros = await this.repo.find({ where: { usuarioId }, order: { ocurridoEn: 'DESC', id: 'DESC' }, take: limite * 8 });
+    const vistos = new Set<string>();
+    const actividad: Actividad[] = [];
+    for (const r of registros) {
+      const a = describirActividad(r);
+      const clave = `${r.entidad}|${r.entidadId}|${a.descripcion}|${a.fecha.slice(0, 19)}`;
+      if (vistos.has(clave)) continue;
+      vistos.add(clave);
+      actividad.push(a);
+      if (actividad.length === limite) break;
+    }
+    return actividad;
   }
 
   listar(filtros: { entidad?: string; desde?: string; hasta?: string; limite?: number }) {
