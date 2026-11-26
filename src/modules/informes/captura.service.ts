@@ -12,7 +12,7 @@ import { hoyEnMexico, validarId, verificarCicloAbierto } from '../planes/reglas'
 import { ConsultaInformesService } from './consulta.service';
 import type { AvanceDto, EnlaceDto, InformeDetalle } from './contrato';
 import { periodoDelInforme, validarEnvioInforme, validarPorcentaje, validarUrlEvidencia, verificarTransicionInforme } from './reglas';
-import { MENSAJE_INFORME_CAMBIO, RevisionInformesService } from './revision.service';
+import { esConflictoDeBloqueo, MENSAJE_INFORME_CAMBIO, RevisionInformesService } from './revision.service';
 
 /** Contexto de una edición: la versión (con informe y ciclo) y el número de la recomendación en el informe. */
 export type ContextoEdicion = { version: VersionInforme; recomendacionId: string; numero: number };
@@ -150,11 +150,16 @@ export class CapturaInformesService {
 
   /** Escribe dentro de una transacción que bloquea la versión y confirma que el estado no cambió mientras tanto. */
   async editarConBloqueo<T>(version: VersionInforme, escribir: (tx: EntityManager) => Promise<T>): Promise<T> {
-    return this.dataSource.transaction(async (tx) => {
-      const actual = await tx.findOne(VersionInforme, { where: { id: version.id }, lock: { mode: 'pessimistic_write' } });
-      if (!actual || actual.estado !== version.estado) throw new ConflictException(MENSAJE_INFORME_CAMBIO);
-      return escribir(tx);
-    });
+    try {
+      return await this.dataSource.transaction(async (tx) => {
+        const actual = await tx.findOne(VersionInforme, { where: { id: version.id }, lock: { mode: 'pessimistic_write' } });
+        if (!actual || actual.estado !== version.estado) throw new ConflictException(MENSAJE_INFORME_CAMBIO);
+        return escribir(tx);
+      });
+    } catch (error) {
+      if (esConflictoDeBloqueo(error)) throw new ConflictException(MENSAJE_INFORME_CAMBIO);
+      throw error;
+    }
   }
 
   /** La evidencia cuelga del avance: primero se captura el %. */

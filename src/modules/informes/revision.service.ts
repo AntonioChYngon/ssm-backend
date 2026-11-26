@@ -13,6 +13,13 @@ import { mensajeObservacionesInforme, verificarTransicionInforme } from './regla
 
 export const MENSAJE_INFORME_CAMBIO = 'El informe cambió de estado mientras tanto. Recarga la página.';
 
+/** ER_LOCK_DEADLOCK (1213) o ER_LOCK_WAIT_TIMEOUT (1205) de MariaDB. */
+export const esConflictoDeBloqueo = (error: unknown) => {
+  const e = error as { errno?: number; driverError?: { errno?: number } } | null;
+  const errno = e?.errno ?? e?.driverError?.errno;
+  return errno === 1213 || errno === 1205;
+};
+
 @Injectable()
 export class RevisionInformesService {
   constructor(
@@ -27,7 +34,7 @@ export class RevisionInformesService {
     const version = await this.consulta.versionVisible(admin, id);
     verificarTransicionInforme(version.estado, 'validar');
     const comentario = dto.comentario?.trim() || null;
-    await this.dataSource.transaction(async (tx) => {
+    await this.conBloqueo(version, async (tx) => {
       await tx.insert(RevisionInforme, { versionInformeId: version.id, revisorId: admin.sub, decision: 'APROBADO', comentarioGeneral: comentario });
       await this.cambiarEstado(tx, version, EstadoVersion.APROBADO, { aprobadoEn: new Date() });
     });
@@ -45,7 +52,7 @@ export class RevisionInformesService {
     const version = await this.consulta.versionVisible(admin, id);
     verificarTransicionInforme(version.estado, 'devolver');
     const { observaciones, recomendaciones } = await this.observacionesDelInforme(version, dto.observaciones);
-    await this.dataSource.transaction(async (tx) => {
+    await this.conBloqueo(version, async (tx) => {
       await this.guardarRevision(tx, admin, version, dto.motivo.trim(), observaciones);
       await this.cambiarEstado(tx, version, EstadoVersion.DEVUELTO, {});
     });
@@ -68,7 +75,7 @@ export class RevisionInformesService {
     verificarTransicionInforme(version.estado, 'reabrir');
     const { observaciones, recomendaciones } = await this.observacionesDelInforme(version, dto.observaciones);
     const motivo = dto.motivo.trim();
-    await this.dataSource.transaction(async (tx) => {
+    await this.conBloqueo(version, async (tx) => {
       // La reapertura se guarda como DEVUELTO (el CHECK solo admite APROBADO/DEVUELTO); el prefijo la distingue en el historial.
       await this.guardarRevision(tx, admin, version, `Reapertura: ${motivo}`, observaciones);
       await this.cambiarEstado(tx, version, EstadoVersion.DEVUELTO, { aprobadoEn: null });
@@ -96,6 +103,25 @@ export class RevisionInformesService {
   }
 
   // ----- Ayudantes -----
+
+  /**
+   * Transacción que bloquea primero la fila del informe (SELECT … FOR UPDATE) y confirma que su estado no cambió.
+   * Sin este bloqueo, dos decisiones simultáneas toman un candado compartido al insertar la revisión (por la llave
+   * foránea) y MariaDB aborta una por interbloqueo (500). Con él, la segunda espera, ve el estado nuevo y recibe 409.
+   */
+  private async conBloqueo(version: VersionInforme, escribir: (tx: EntityManager) => Promise<void>) {
+    try {
+      await this.dataSource.transaction(async (tx) => {
+        const actual = await tx.findOne(VersionInforme, { where: { id: version.id }, lock: { mode: 'pessimistic_write' } });
+        if (!actual || actual.estado !== version.estado) throw new ConflictException(MENSAJE_INFORME_CAMBIO);
+        await escribir(tx);
+      });
+    } catch (error) {
+      // Por si otro proceso toma los candados en otro orden: un interbloqueo o una espera agotada también es un conflicto.
+      if (esConflictoDeBloqueo(error)) throw new ConflictException(MENSAJE_INFORME_CAMBIO);
+      throw error;
+    }
+  }
 
   /** Cambia el estado solo si nadie lo cambió antes (dos Administradores, o la coordinación editando). */
   private async cambiarEstado(tx: EntityManager, version: VersionInforme, estado: EstadoVersion, extra: Partial<VersionInforme>) {

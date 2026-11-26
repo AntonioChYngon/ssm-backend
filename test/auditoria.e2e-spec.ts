@@ -75,9 +75,14 @@ describe('HU-03 · auditoría de cambios', () => {
 
   it('la bitácora filtra por área, rol, licenciatura y búsqueda, con paginación', async () => {
     const [{ id: arq }] = await dataSource.query("SELECT licenciatura_id AS id FROM licenciatura WHERE clave = 'ARQ'");
-    const { body } = await api().get(`/api/auditoria?area=PLAN&rol=AUXILIAR&licenciaturaIds=${arq}&q=HU-03`).set('Authorization', `Bearer ${admin}`).expect(200);
+    // La Auxiliar cambió dos campos: "recomendación" y "fecha de cumplimiento".
+    const { body } = await api().get(`/api/auditoria?area=PLAN&rol=AUXILIAR&licenciaturaIds=${arq}`).set('Authorization', `Bearer ${admin}`).expect(200);
     expect(body.total).toBeGreaterThanOrEqual(2);
     expect(body.eventos.every((e: { rol: string; licenciatura: string }) => e.rol === 'AUXILIAR' && e.licenciatura === 'Arquitectura')).toBe(true);
+    // La búsqueda mira usuario, campo y valores: "HU-03" solo aparece en el cambio de la recomendación, no en el de la fecha.
+    const busqueda = await api().get(`/api/auditoria?area=PLAN&rol=AUXILIAR&licenciaturaIds=${arq}&q=HU-03`).set('Authorization', `Bearer ${admin}`).expect(200);
+    expect(busqueda.body.total).toBeGreaterThanOrEqual(1);
+    expect(busqueda.body.eventos.every((e: { campo: string; anterior: string | null; nuevo: string | null }) => `${e.campo} ${e.anterior ?? ''} ${e.nuevo ?? ''}`.includes('HU-03'))).toBe(true);
     const pagina = await api().get('/api/auditoria?limite=1&pagina=2').set('Authorization', `Bearer ${admin}`).expect(200);
     expect(pagina.body).toMatchObject({ pagina: 2, limite: 1 });
     expect(pagina.body.eventos).toHaveLength(1);
