@@ -3,6 +3,7 @@
 import { Type } from 'class-transformer';
 import { IsArray, IsIn, IsInt, IsOptional, IsString, Length, Matches, Max, MaxLength, Min, ValidateNested } from 'class-validator';
 import { EstadoVersion } from '../../common/enums';
+import { PATRON_LICENCIATURAS } from '../../common/licenciaturas';
 import type { RevisionResumen } from '../planes/planes.module';
 import type { BloqueoInforme } from './reglas';
 
@@ -104,6 +105,8 @@ const ID = /^\d{1,19}$/;
 export class FiltrosInformesDto {
   @IsOptional() @IsIn(ESTADOS) estado?: EstadoVersion;
   @IsOptional() @Matches(ID) licenciaturaId?: string;
+  /** HU-13: una o varias licenciaturas separadas por coma (sin el parámetro, todas). */
+  @IsOptional() @Matches(PATRON_LICENCIATURAS) licenciaturaIds?: string;
   @IsOptional() @Matches(ID) cicloId?: string;
   @IsOptional() @IsString() @MaxLength(20) periodo?: string;
 }

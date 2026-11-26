@@ -14,12 +14,14 @@ import {
   Param,
   Patch,
   Post,
+  Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { IsDateString, IsOptional, IsString, Length } from 'class-validator';
 import { DataSource, EntityManager, In } from 'typeorm';
 import { Roles, UsuarioActual, UsuarioToken } from '../../common/auth';
+import { leerLicenciaturaIds } from '../../common/licenciaturas';
 import { EstadoVersion, Rol } from '../../common/enums';
 import { Licenciatura } from '../../database/entities';
 import { CicloAcreditacion, Indicador, OrganismoAcreditador, VersionPlan } from '../../database/plan.entities';
@@ -74,8 +76,12 @@ export class CiclosService {
   ) {}
 
   /** Todos los ciclos (vigentes e históricos) con el estado de su plan. */
-  async listar(): Promise<CicloAdministracion[]> {
-    const ciclos = await this.db.getRepository(CicloAcreditacion).find({ relations: { licenciatura: true, organismo: true } });
+  async listar(licenciaturaIds?: string[]): Promise<CicloAdministracion[]> {
+    const ciclos = await this.db.getRepository(CicloAcreditacion).find({
+      // HU-13: una, varias o todas las licenciaturas.
+      where: licenciaturaIds?.length ? { licenciaturaId: In(licenciaturaIds) } : {},
+      relations: { licenciatura: true, organismo: true },
+    });
     return this.resumir(this.db.manager, ciclos);
   }
 
@@ -268,8 +274,8 @@ export class CiclosController {
   constructor(private readonly servicio: CiclosService) {}
 
   @Get()
-  listar() {
-    return this.servicio.listar();
+  listar(@Query('licenciaturaIds') licenciaturaIds?: string) {
+    return this.servicio.listar(leerLicenciaturaIds(licenciaturaIds));
   }
 
   @Post()

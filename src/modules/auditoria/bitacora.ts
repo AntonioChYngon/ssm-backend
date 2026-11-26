@@ -3,13 +3,13 @@
 import { BadRequestException } from '@nestjs/common';
 import { Transform } from 'class-transformer';
 import { IsIn, IsInt, IsOptional, IsString, Matches, Max, MaxLength, Min } from 'class-validator';
+import { PATRON_LICENCIATURAS } from '../../common/licenciaturas';
 import { describirActividad, type TipoActividad } from './actividad';
 
 export const AREAS_BITACORA = ['SESIONES', 'CUENTAS', 'PLAN', 'INFORME', 'CICLOS'] as const;
 export type AreaBitacora = (typeof AREAS_BITACORA)[number];
 const ROLES = ['ADMINISTRADOR', 'CAPTURA', 'AUXILIAR'] as const;
 const FECHA = /^\d{4}-\d{2}-\d{2}$/;
-const IDS = /^\d{1,19}(,\d{1,19})*$/;
 
 export class FiltrosBitacoraDto {
   @IsOptional() @IsIn(ROLES) rol?: (typeof ROLES)[number];
@@ -18,7 +18,7 @@ export class FiltrosBitacoraDto {
   @IsOptional() @Matches(FECHA) hasta?: string;
   @IsOptional() @IsString() @MaxLength(100) q?: string;
   /** HU-13: una o varias licenciaturas separadas por coma (sin el parámetro, todas). */
-  @IsOptional() @Matches(IDS) licenciaturaIds?: string;
+  @IsOptional() @Matches(PATRON_LICENCIATURAS) licenciaturaIds?: string;
   @IsOptional() @Transform(({ value }) => Number(value)) @IsInt() @Min(1) pagina?: number;
   @IsOptional() @Transform(({ value }) => Number(value)) @IsInt() @Min(1) @Max(100) limite?: number;
 }

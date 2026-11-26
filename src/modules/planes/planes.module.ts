@@ -15,6 +15,7 @@ import {
   Param,
   Post,
   Put,
+  Query,
   StreamableFile,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
@@ -35,6 +36,7 @@ import {
 } from 'class-validator';
 import { DataSource, EntityManager, In, Repository } from 'typeorm';
 import { Roles, UsuarioActual, UsuarioToken } from '../../common/auth';
+import { leerLicenciaturaIds } from '../../common/licenciaturas';
 import { EstadoVersion, Rol } from '../../common/enums';
 import { Licenciatura } from '../../database/entities';
 import {
@@ -248,7 +250,7 @@ export class PlanesService {
   // ----- Consultas -----
 
   /** Planes con su estado actual: el Administrador ve todos (incluidos borradores); Captura y Auxiliar, los de su licenciatura. */
-  async listar(usuario: UsuarioToken): Promise<PlanResumen[]> {
+  async listar(usuario: UsuarioToken, licenciaturaIds?: string[]): Promise<PlanResumen[]> {
     const q = this.versiones
       .createQueryBuilder('v')
       .innerJoinAndSelect('v.ciclo', 'c')
@@ -257,6 +259,8 @@ export class PlanesService {
       // Solo la versión más reciente de cada ciclo.
       .where('v.numeroVersion = (SELECT MAX(v2.numero_version) FROM version_plan v2 WHERE v2.ciclo_id = v.ciclo_id)');
     if (usuario.rol !== Rol.ADMINISTRADOR) q.andWhere('c.licenciaturaId = :lic', { lic: usuario.licenciaturaId ?? '0' });
+    // HU-13: el Administrador puede elegir una, varias o todas.
+    if (licenciaturaIds?.length) q.andWhere('c.licenciaturaId IN (:...licenciaturaIds)', { licenciaturaIds });
     const versiones = await q.getMany();
     const totales = await this.totalesPorVersion(versiones.map((v) => v.id));
     return versiones
@@ -709,8 +713,8 @@ export class PlanesController {
 
   /** Dashboard y selector de la Configuración de Metas. */
   @Get('planes')
-  listar(@UsuarioActual() usuario: UsuarioToken) {
-    return this.servicio.listar(usuario);
+  listar(@UsuarioActual() usuario: UsuarioToken, @Query('licenciaturaIds') licenciaturaIds?: string) {
+    return this.servicio.listar(usuario, leerLicenciaturaIds(licenciaturaIds));
   }
 
   @Get('planes/mio')

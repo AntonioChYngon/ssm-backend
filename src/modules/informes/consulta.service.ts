@@ -5,6 +5,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { UsuarioToken } from '../../common/auth';
 import { EstadoVersion, Rol } from '../../common/enums';
+import { leerLicenciaturaIds } from '../../common/licenciaturas';
 import {
   AvanceRecomendacion,
   CicloAcreditacion,
@@ -52,6 +53,9 @@ export class ConsultaInformesService {
     );
     if (usuario.rol !== Rol.ADMINISTRADOR) q.andWhere('c.licenciaturaId = :propia', { propia: usuario.licenciaturaId ?? '0' });
     if (filtros.licenciaturaId) q.andWhere('c.licenciaturaId = :lic', { lic: filtros.licenciaturaId });
+    // HU-13: el Administrador puede elegir una, varias o todas.
+    const varias = leerLicenciaturaIds(filtros.licenciaturaIds);
+    if (varias) q.andWhere('c.licenciaturaId IN (:...varias)', { varias });
     if (filtros.cicloId) q.andWhere('i.cicloId = :ciclo', { ciclo: filtros.cicloId });
     if (filtros.estado) q.andWhere('v.estado = :estado', { estado: filtros.estado });
     if (filtros.periodo) q.andWhere('i.nombrePeriodo = :periodo', { periodo: filtros.periodo });
