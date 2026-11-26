@@ -39,6 +39,7 @@ jobs:
       SEED_DATOS_DESARROLLO: 'true'
       SEED_CUENTAS_COORDINACIONES: 'true'
       SEED_CUENTAS_PASSWORD: CuentasCi2026
+      SEED_CICLOS_REALES: 'true'
 
     steps:
       - uses: actions/checkout@v4

@@ -385,6 +385,14 @@ CREATE TABLE recomendacion_transversal (
     CONSTRAINT fk_rectrans_recomendacion FOREIGN KEY (recomendacion_id) REFERENCES recomendacion(recomendacion_id)
 ) ENGINE=InnoDB;
 
+-- HU-10: un recordatorio (fecha límite o rezago de un hito) se envía una sola vez. La clave dice qué se avisó.
+CREATE TABLE recordatorio_enviado (
+    clave           VARCHAR(160) PRIMARY KEY,
+    licenciatura_id BIGINT NOT NULL,
+    enviado_en      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_recordatorio_licenciatura FOREIGN KEY (licenciatura_id) REFERENCES licenciatura(licenciatura_id)
+) ENGINE=InnoDB;
+
 CREATE TABLE notificacion (
     notificacion_id BIGINT AUTO_INCREMENT PRIMARY KEY,
     usuario_id      BIGINT NOT NULL,

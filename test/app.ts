@@ -8,6 +8,8 @@ import request from 'supertest';
 import { AppModule } from '../src/app.module';
 
 export const crearApp = async (): Promise<INestApplication> => {
+  // HU-10: la revisión automática no corre en las pruebas; cada prueba la llama cuando la necesita.
+  process.env.RECORDATORIOS_ACTIVOS = 'false';
   const modulo = await Test.createTestingModule({ imports: [AppModule] }).compile();
   const app = modulo.createNestApplication();
   app.setGlobalPrefix('api');

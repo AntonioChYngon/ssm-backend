@@ -65,6 +65,8 @@ Prefijo `/api`. Todas piden `Authorization: Bearer <token>`, salvo las públicas
 | `POST /ciclos/:cicloId/carpeta` (crear la carpeta de un ciclo que no la tiene) | Administrador | HU-18 |
 | `GET /planes/:id/pdf` · `GET /planes/:id/docx` (Plan de Mejora Continua con membrete) | Administrador, Captura y Auxiliar de su licenciatura | HU-06 |
 | `GET /informes/:id/pdf` · `GET /informes/:id/docx` (Informe de Seguimiento con membrete y evidencias como hipervínculos) | Administrador, Captura y Auxiliar de su licenciatura | HU-09 |
+| `GET /recordatorios` (banner al iniciar sesión: fechas límite próximas, vencidas y rezagos) | Captura, Auxiliar | HU-10 |
+| `POST /recordatorios/ejecutar` (corre ya la revisión diaria; no repite avisos) | Administrador | HU-10 |
 | `GET /notificaciones` · `PATCH /notificaciones/:id/leida` | cualquier sesión | HU-10 |
 
 El Informe de Seguimiento (HU-07, HU-08, HU-11) vive en `src/modules/informes/` (decisiones en `docs/decisiones.md`, D9); la auditoría por campo y la bitácora (HU-03) en `src/modules/auditoria/` (D10); el filtro de varias licenciaturas (HU-13) en `src/common/licenciaturas.ts` (D11). En una base existente aplica `db/migraciones/2026-11-27_informe_evidencias.sql`.

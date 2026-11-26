@@ -1,5 +1,5 @@
 // Avisos del sistema: se guardan para la campana de la aplicación (tabla notificacion) y se envían por correo
-// institucional (HU-05, HU-08, HU-11). Si el correo falla, el aviso In-App queda igual y se marca FALLIDA.
+// institucional (HU-05, HU-08, HU-10, HU-11). Si el correo falla, el aviso In-App queda igual y se marca FALLIDA.
 import { Controller, ForbiddenException, Get, Global, Injectable, Logger, Module, NotFoundException, Param, Patch } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
@@ -19,7 +19,10 @@ export type TipoAviso =
   | 'INFORME_ENVIADO'
   | 'INFORME_VALIDADO'
   | 'INFORME_DEVUELTO'
-  | 'INFORME_REABIERTO';
+  | 'INFORME_REABIERTO'
+  // HU-10: recordatorios automáticos.
+  | 'RECORDATORIO_FECHA_LIMITE'
+  | 'REZAGO_DETECTADO';
 
 export type Aviso = { tipo: TipoAviso; titulo: string; mensaje: string };
 type Destinatario = { usuarioId: string; correo: string };
@@ -44,6 +47,8 @@ const TIPO_FRONT: Record<TipoAviso, NotificacionListado['tipo']> = {
   INFORME_VALIDADO: 'PLAN',
   INFORME_DEVUELTO: 'DEVOLUCION',
   INFORME_REABIERTO: 'DEVOLUCION',
+  RECORDATORIO_FECHA_LIMITE: 'VENCIMIENTO',
+  REZAGO_DETECTADO: 'META',
 };
 /** Enlace fijo por tipo de aviso: la pantalla donde se atiende. */
 const ENLACE: Record<TipoAviso, string> = {
@@ -54,6 +59,8 @@ const ENLACE: Record<TipoAviso, string> = {
   INFORME_VALIDADO: '/licenciatura/informe',
   INFORME_DEVUELTO: '/licenciatura/informe',
   INFORME_REABIERTO: '/licenciatura/informe',
+  RECORDATORIO_FECHA_LIMITE: '/licenciatura/informe',
+  REZAGO_DETECTADO: '/licenciatura/informe',
 };
 const esTipoAviso = (tipo: string): tipo is TipoAviso => tipo in ENLACE;
 

@@ -13,6 +13,7 @@ import { CorreoModule } from './modules/correo/correo.module';
 import { InformesModule } from './modules/informes/informes.module';
 import { NotificacionesModule } from './modules/notificaciones/notificaciones.module';
 import { PlanesModule } from './modules/planes/planes.module';
+import { RecordatoriosModule } from './modules/recordatorios/recordatorios.module';
 import { ReportesModule } from './modules/reportes/reportes.module';
 import { UsuariosModule } from './modules/usuarios/usuarios.module';
 
@@ -66,6 +67,7 @@ import { UsuariosModule } from './modules/usuarios/usuarios.module';
     // Una línea por historia de usuario. Mantén el orden alfabético para evitar conflictos.
     InformesModule, // HU-07, HU-08, HU-11
     PlanesModule, // HU-04
+    RecordatoriosModule, // HU-10
     ReportesModule, // HU-15
     UsuariosModule, // HU-02
   ],
