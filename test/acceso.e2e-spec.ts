@@ -364,8 +364,18 @@ describe('Acceso (HU-01) y endpoints base de HU-02, HU-04 y HU-15', () => {
       expect(r.body.find((c: { licenciatura: { nombre: string } }) => c.licenciatura.nombre === 'Actuaría')).toMatchObject({ nombre: '2024-2029', activo: true });
     });
 
+    it('trae los ciclos reales de CICLOS VIGENTES.xlsx (SEED_CICLOS_REALES)', async () => {
+      const r = await api().get('/api/ciclos').set('Authorization', `Bearer ${admin}`).expect(200);
+      const de = (nombre: string) => r.body.find((c: { licenciatura: { nombre: string } }) => c.licenciatura.nombre === nombre);
+      expect(de('Comunicación')).toMatchObject({ nombre: '2026-2031', vigenciaInicio: '2026-03-02', vigenciaFin: '2031-03-02', estado: 'VIGENTE' });
+      expect(de('Comunicación').organismo.nombre).toContain('ACCECISO');
+      expect(de('Ingeniería Civil')).toMatchObject({ vigenciaInicio: '2024-08-01', vigenciaFin: '2027-07-31' });
+      // "En proceso" en el Excel: sin ciclo hasta que la Administradora lo registre.
+      expect(de('Relaciones Internacionales')).toBeUndefined();
+    });
+
     it('inicia un ciclo con su carpeta, impide otro activo y valida la vigencia', async () => {
-      const licenciaturaId = await idDe('licenciatura', 'clave', 'SOC');
+      const licenciaturaId = await idDe('licenciatura', 'clave', 'FIL');
       const organismoId = await idDe('organismo_acreditador', 'siglas', 'CIEES');
       const datos = { licenciaturaId, organismoId, fechaEmision: '2026-01-10', vigenciaInicio: '2026-01-15', vigenciaFin: '2031-01-15' };
 
@@ -373,17 +383,17 @@ describe('Acceso (HU-01) y endpoints base de HU-02, HU-04 y HU-15', () => {
       const creado = await api().post('/api/ciclos').set('Authorization', `Bearer ${admin}`).send(datos).expect(201);
       ciclosCreados.push(String(creado.body.id));
       expect(creado.body).toMatchObject({ nombre: '2026-2031', estado: 'VIGENTE', activo: true, plan: null });
-      expect(creado.body.carpeta.ruta).toBe('/Evidencias/Sociología/2026-2031');
+      expect(creado.body.carpeta.ruta).toBe('/Evidencias/Filosofía/2026-2031');
 
       const otro = await api().post('/api/ciclos').set('Authorization', `Bearer ${admin}`).send({ ...datos, fechaEmision: '2026-02-01' }).expect(409);
       expect(otro.body.message).toContain('Podrás iniciar uno nuevo cuando termine');
 
       const corregido = await api().patch(`/api/ciclos/${creado.body.id}`).set('Authorization', `Bearer ${admin}`).send({ ...datos, nombre: 'Reacreditación 2026' }).expect(200);
-      expect(corregido.body.carpeta.ruta).toBe('/Evidencias/Sociología/Reacreditación 2026');
+      expect(corregido.body.carpeta.ruta).toBe('/Evidencias/Filosofía/Reacreditación 2026');
     });
 
     it('un ciclo con la vigencia ya vencida se registra como histórico', async () => {
-      const licenciaturaId = await idDe('licenciatura', 'clave', 'SOC');
+      const licenciaturaId = await idDe('licenciatura', 'clave', 'FIL');
       const organismoId = await idDe('organismo_acreditador', 'siglas', 'CIEES');
       const r = await api().post('/api/ciclos').set('Authorization', `Bearer ${admin}`)
         .send({ licenciaturaId, organismoId, fechaEmision: '2019-05-01', vigenciaInicio: '2019-05-01', vigenciaFin: '2024-05-01' }).expect(201);

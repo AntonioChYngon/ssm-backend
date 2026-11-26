@@ -6,6 +6,8 @@
 //    al primer inicio de sesión el sistema obliga a cambiarla.
 // 4. Si SEED_DATOS_DESARROLLO=true y aún no hay planes, carga db/datos_desarrollo.sql.
 //    Además crea (si faltan) los PDF de ejemplo de las evidencias de archivo en CARPETAS_DIR.
+// 5. Si SEED_CICLOS_REALES=true, carga db/ciclos_vigentes.sql (vigencias reales de CICLOS VIGENTES.xlsx) solo para
+//    las licenciaturas que todavía no tienen ningún ciclo. Va después de los datos de desarrollo para no chocar con ellos.
 // Uso:  npm run seed   (lee el .env). Se puede correr varias veces sin duplicar nada.
 import 'reflect-metadata';
 import 'dotenv/config';
@@ -137,6 +139,14 @@ const main = async () => {
     const carpetas = process.env.CARPETAS_DIR ?? 'storage';
     const archivos = await asegurarArchivosDeEjemplo(ds, carpetas);
     if (archivos.total) console.log(`✔ PDF de ejemplo de evidencias en ${carpetas}: ${archivos.creados} creados, ${archivos.total - archivos.creados} ya existían.`);
+  }
+
+  if (process.env.SEED_CICLOS_REALES === 'true') {
+    const [{ antes }] = await ds.query('SELECT COUNT(*) AS antes FROM ciclo_acreditacion');
+    await ds.transaction((tx) => tx.query(leerSql('ciclos_vigentes.sql')));
+    const [{ despues }] = await ds.query('SELECT COUNT(*) AS despues FROM ciclo_acreditacion');
+    const nuevos = Number(despues) - Number(antes);
+    console.log(nuevos ? `✔ Ciclos vigentes reales: ${nuevos} registrados (CICLOS VIGENTES.xlsx).` : '• Ciclos vigentes reales: ya estaban registrados.');
   }
 
   await ds.destroy();

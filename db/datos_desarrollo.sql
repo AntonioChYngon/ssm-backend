@@ -31,7 +31,9 @@ INSERT INTO ciclo_acreditacion (licenciatura_id, organismo_id, nombre, fecha_emi
 SELECT l.licenciatura_id, o.organismo_id, '2024-2029', '2024-11-28', '2024-11-28', '2029-11-28', CONCAT('Constancia de prueba ', l.clave)
 FROM licenciatura l
 JOIN organismo_acreditador o ON o.siglas = CASE l.clave WHEN 'DER' THEN 'CONAED' WHEN 'ARQ' THEN 'ANPADEH' ELSE 'CIEES' END
-WHERE l.clave IN ('ACT', 'DER', 'ECO', 'ARQ');
+WHERE l.clave IN ('ACT', 'DER', 'ECO', 'ARQ')
+  -- Si ya se cargaron los ciclos reales (SEED_CICLOS_REALES), se usan esos.
+  AND NOT EXISTS (SELECT 1 FROM ciclo_acreditacion x WHERE x.licenciatura_id = l.licenciatura_id AND x.estado = 'VIGENTE');
 
 -- ---------- Planes (ARQ se queda sin plan a propósito) ----------
 INSERT INTO version_plan (ciclo_id, numero_version, estado, creado_por, enviado_en, aprobado_en)

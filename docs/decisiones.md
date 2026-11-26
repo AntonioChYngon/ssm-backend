@@ -154,6 +154,30 @@ Plan completo y lista de decisiones en el proyecto del equipo (`bloque-informe-p
 - **Permisos para evaluadores externos:** dependen de Drive. Cuando exista el proveedor `drive`, las evidencias tendrán `url_vista`
   y el reporte exportará ese enlace; los permisos de visualización se configuran al crear el archivo en Drive.
 
+## D13 · Recordatorios automáticos (HU-10) · 26/11/2026
+- La revisión corre al arrancar la API (15 s después) y cada día a `RECORDATORIOS_HORA` (8:00, Ciudad de México).
+  `POST /recordatorios/ejecutar` la corre a mano. Sin dependencias nuevas: es un temporizador del propio servicio.
+- Solo revisa el **último plan APROBADO** de cada licenciatura con **ciclo activo** (HU-18). Ciclo terminado: no hay avisos.
+- **% actual = último informe capturado** (el informe más reciente que registró esa recomendación, en cualquier estado).
+  Es el dato con el que trabaja la coordinación; esperar a la validación del Administrador daría avisos atrasados.
+  Si la HU-15 decide otra cosa (último aprobado), se cambia en `ultimosAvances()` de `recordatorios.module.ts`.
+- **Fecha límite** = fecha de cumplimiento de la recomendación. Se avisa `RECORDATORIOS_DIAS_ANTES` días antes (7) si va < 100 %.
+- **Rezago** = venció la fecha de un hito (meta con fecha y %, HU-12) y el % actual es menor; si vencieron varios, cuenta el de
+  mayor %. Se avisa en la primera revisión después de la fecha.
+- Cada recordatorio se envía **una sola vez** (tabla `recordatorio_enviado`): un aviso por correo e In-App por licenciatura y tipo,
+  con indicador, recomendación, meta pendiente, % comprometido vs actual y fecha límite.
+- El **banner al iniciar sesión** (`GET /recordatorios`) se calcula en el momento: muestra también las fechas ya vencidas y
+  desaparece en cuanto se captura el avance. Nada se bloquea por la fecha (No Bloqueo).
+
+## D14 · Ciclos vigentes reales (CICLOS VIGENTES.xlsx) · 26/11/2026
+- `db/catalogos/generar_ciclos.py` genera `db/ciclos_vigentes.sql`. El seed lo carga con `SEED_CICLOS_REALES=true`, después de
+  los datos de desarrollo, y **solo crea el ciclo de las licenciaturas que no tienen ninguno**.
+- 11 licenciaturas con vigencia. "En proceso" (ARQ, CPAP, RI, RI-SUA, ECO) y sin dato (FIL, HIS, LLH) quedan sin ciclo.
+- La fecha de emisión no viene en el Excel: se usa el inicio de la vigencia.
+- Actuaría viene sin día ("Julio de 2025 a agosto de 2030"): se registró del 01/07/2025 al 31/08/2030. Excede los 5 años que
+  acepta la pantalla de ciclos; confirmar las fechas de la constancia.
+- Con datos de desarrollo, ACT, DER, ECO y ARQ conservan sus ciclos de prueba (las pruebas dependen de ellos).
+
 ## Bases de datos existentes
 Cada cambio de esquema tiene su script en `db/migraciones/`. En desarrollo es más fácil recrear la base:
 `podman compose down`, `podman volume rm ssm-backend_ssm-db`, `podman compose up -d db correo` y `npm run seed`.
