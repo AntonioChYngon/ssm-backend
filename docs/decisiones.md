@@ -94,6 +94,53 @@ Los catálogos reales vienen de **Catálogos.xlsx**: `db/catalogos/generar_catal
   (`null` vacía, ausente conserva lo configurado en Metas) y también el formato anterior de solo texto.
 - En discusión con el equipo (25/11/2026): si la pestaña *Metas* se conserva o se retira.
 
+## D9 · Bloque Informe de Seguimiento (HU-07, HU-08, HU-11) · 25/11/2026
+Plan completo y lista de decisiones en el proyecto del equipo (`bloque-informe-plan.md` y `bloque-informe-decisiones.md`).
+- **Un informe por semestre** (`2026-1`, `2026-2`…), con calendario UNAM: `AAAA-1` = agosto del año anterior a enero y
+  `AAAA-2` = febrero a julio. El primer y el último semestre se recortan a la vigencia del ciclo; el corte es el último día.
+  Las fechas viven **solo** en la constante `SEMESTRES` de `src/modules/informes/reglas.ts` (comentada para cambiarla).
+- El informe se liga a la última versión **APROBADA** del plan; sin plan aprobado no se inicia.
+- **% de avance escrito con teclado**, entero de 0 a 100 (HU-07 decía "catálogo"; va en minuta con el cliente).
+  También hay un CHECK en la base (`ck_avance_entero`).
+- **Evidencia obligatoria solo al 100 %**, y se revisa al enviar. Archivos `.pdf .docx .xlsx .pptx` de hasta 15 MB
+  (`EVIDENCIA_MAX_MB`), revisando extensión y firma; los de Office se convierten a PDF con LibreOffice (`SOFFICE_BIN`).
+  Sin LibreOffice o si falla la conversión, la interfaz ofrece el enlace (Plan B). La tabla `evidencia` distingue `origen`
+  `ARCHIVO`/`URL` y guarda `url_vista` para Drive.
+- Carpeta de cada recomendación: `/Evidencias/[Licenciatura]/[Ciclo]/Informe-[semestre]/Rec-[NN]/`, nombres generados por el sistema.
+- Estados `BORRADOR → EN_REVISION → APROBADO / DEVUELTO`; las correcciones van sobre la misma versión (como D5).
+  El Administrador puede **validar, devolver y reabrir aunque el ciclo haya cerrado**; la coordinación sigue bloqueada por HU-18.
+  La reapertura se guarda en `revision_informe` como `DEVUELTO` con su motivo.
+- `editable` y `bloqueo` los calcula solo el backend. Otra licenciatura responde 404 (no se revela que el informe exista).
+- El Plan de Mejora no se toca: el informe tiene sus propias reglas (`informes/reglas.ts`).
+- Para subir o enlazar una evidencia, primero se captura el % de su recomendación (la evidencia cuelga del avance).
+- Endpoints (el `id` de un informe es su `version_informe_id`; toda acción responde el informe completo):
+  - Consulta: `GET /informes` (filtros `estado`, `licenciaturaId`, `licenciaturaIds`, `cicloId`, `periodo`), `GET /informes/mio`,
+    `GET /informes/:id`, `GET /evidencias/:id/archivo`.
+  - Coordinación (HU-07): `POST /ciclos/:cicloId/informes`, `PUT /informes/:id/avances/:recomendacionId`,
+    `POST /informes/:id/avances/:recomendacionId/evidencias` (multipart `archivo`), `POST …/enlaces`, `DELETE /evidencias/:id`,
+    `POST /informes/:id/enviar` (avisa a los Administradores, HU-11).
+  - Administrador (HU-08): `POST /informes/:id/validar`, `/devolver` (motivo + observaciones por recomendación), `/reabrir` (motivo).
+- Errores: 400 validación, 403 rol, 404 otra licenciatura o recomendación ajena, 409 estado o ciclo cerrado,
+  413 peso, 415 tipo, 503 conversión o carpeta (la interfaz ofrece reintentar o el enlace).
+
+## D10 · Auditoría por campo y bitácora (HU-03) · 25/11/2026
+- Cada guardado registra **una fila por campo que cambió** (`AuditoriaService.registrarCambios`), con valor anterior y nuevo
+  y el rol de la sesión (Captura o Auxiliar). Si nada cambió no se registra nada. Crear y eliminar siguen siendo una fila.
+- Plan: categoría, indicador, recomendación, acciones, metas (con fecha y %), área responsable y fecha de cumplimiento.
+- Informe: `entidad = avance_recomendacion` con `entidad_id` = **id de la recomendación** y el semestre en el campo
+  ("porcentaje · Informe 2027-1", "evidencia agregada · Informe 2027-1"). Así la línea de tiempo de una recomendación
+  junta su captura en el plan y su avance en todos los informes. Los cambios de estado van en `version_informe`.
+- `GET /auditoria` (Administrador): filtros `rol`, `area` (SESIONES, CUENTAS, PLAN, INFORME, CICLOS), `desde`/`hasta`
+  (día de la Ciudad de México), `q`, `licenciaturaIds`, `pagina`, `limite`. La licenciatura de un registro es la de lo que
+  se modificó, no la de quien lo hizo. `GET /auditoria/recomendaciones/:id`: línea de tiempo, de lo más antiguo a lo más reciente.
+- La bitácora sigue siendo inmutable (triggers `trg_auditoria_sin_update` y `trg_auditoria_sin_delete`). Mi perfil agrupa las
+  filas de un mismo guardado en un solo movimiento.
+
+## D11 · Varias licenciaturas para el Administrador (HU-13) · 25/11/2026
+- `licenciaturaIds=1,2,3` en `GET /planes`, `/informes`, `/ciclos` y `/auditoria`; sin el parámetro, todas.
+- Captura y Auxiliar siguen limitados a su licenciatura: el filtro solo reduce, nunca amplía (pruebas en `test/multicarrera.e2e-spec.ts`).
+- El dashboard, los reportes (HU-14, HU-15) y el histórico (HU-16) todavía usan datos de ejemplo; usarán el mismo parámetro.
+
 ## Bases de datos existentes
 Cada cambio de esquema tiene su script en `db/migraciones/`. En desarrollo es más fácil recrear la base:
 `podman compose down`, `podman volume rm ssm-backend_ssm-db`, `podman compose up -d db correo` y `npm run seed`.

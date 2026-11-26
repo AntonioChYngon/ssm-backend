@@ -28,6 +28,15 @@ describe('describirActividad (Mi perfil · actividad reciente)', () => {
     expect(JSON.stringify(baja)).not.toContain('motivo');
   });
 
+  it('describe la edición por campo del plan y las acciones del informe (HU-03)', () => {
+    expect(describirActividad(registro('recomendacion', 'fecha de cumplimiento', '2027-06-30')).descripcion).toBe('Editó una recomendación del plan');
+    expect(describirActividad(registro('recomendacion', 'metas', 'Meta (2026-06-30, 50%)')).descripcion).toBe('Configuró las metas de una recomendación');
+    expect(describirActividad(registro('avance_recomendacion', 'porcentaje · Informe 2027-1', '60')).descripcion).toBe('Actualizó el avance de una recomendación del informe');
+    expect(describirActividad(registro('avance_recomendacion', 'evidencia agregada · Informe 2027-1', 'acta.pdf')).descripcion).toBe('Agregó una evidencia al informe de seguimiento');
+    expect(describirActividad(registro('version_informe', 'estado', 'EN_REVISION')).descripcion).toBe('Envió el informe de seguimiento a revisión');
+    expect(describirActividad(registro('version_informe', 'reabierto', 'motivo')).descripcion).toBe('Reabrió un informe de seguimiento aprobado');
+  });
+
   it('usa una frase genérica para eventos que aún no conoce', () => {
     expect(describirActividad(registro('informe', 'nuevo_campo', 'x'))).toMatchObject({ tipo: 'OTRO', descripcion: 'Actualizó información del sistema' });
   });

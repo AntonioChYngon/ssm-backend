@@ -11,7 +11,7 @@ export type Actividad = {
   fecha: string;
 };
 
-type Registro = { id: string; entidad: string; campo: string; valorNuevo: string | null; ocurridoEn: Date };
+type Registro = { id: string; entidad: string; entidadId?: string; campo: string; valorNuevo: string | null; ocurridoEn: Date };
 
 const estadoDe = (valor: string | null) => {
   if (!valor) return null;
@@ -39,8 +39,22 @@ const describir = ({ entidad, campo, valorNuevo }: Registro): [TipoActividad, st
     if (campo.startsWith('creada')) return ['PLAN', 'Agregó una recomendación al plan'];
     if (campo.startsWith('actualizada')) return ['PLAN', 'Editó una recomendación del plan'];
     if (campo === 'eliminada') return ['PLAN', 'Eliminó una recomendación del plan'];
-    if (campo === 'metas configuradas') return ['PLAN', 'Configuró las metas de una recomendación'];
+    if (campo === 'metas configuradas' || campo === 'metas') return ['PLAN', 'Configuró las metas de una recomendación'];
+    // HU-03: edición registrada campo por campo (categoría, indicador, recomendación, acciones, área, fecha…).
+    return ['PLAN', 'Editó una recomendación del plan'];
   }
+  if (entidad === 'avance_recomendacion') {
+    if (campo.startsWith('evidencia agregada')) return ['PLAN', 'Agregó una evidencia al informe de seguimiento'];
+    if (campo.startsWith('evidencia quitada')) return ['PLAN', 'Quitó una evidencia del informe de seguimiento'];
+    return ['PLAN', 'Actualizó el avance de una recomendación del informe'];
+  }
+  if (entidad === 'version_informe' && campo === 'estado') {
+    if (valorNuevo === 'BORRADOR') return ['PLAN', 'Inició el informe de seguimiento del semestre'];
+    if (valorNuevo === 'EN_REVISION') return ['PLAN', 'Envió el informe de seguimiento a revisión'];
+    if (valorNuevo === 'APROBADO') return ['PLAN', 'Validó un informe de seguimiento'];
+    if (valorNuevo === 'DEVUELTO') return ['PLAN', 'Devolvió un informe de seguimiento con observaciones'];
+  }
+  if (entidad === 'version_informe' && campo === 'reabierto') return ['PLAN', 'Reabrió un informe de seguimiento aprobado'];
   if (entidad === 'version_plan' && campo === 'estado') {
     if (valorNuevo === 'EN_REVISION') return ['PLAN', 'Envió el plan de mejora a validación'];
     if (valorNuevo === 'APROBADO') return ['PLAN', 'Validó un plan de mejora'];

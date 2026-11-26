@@ -338,6 +338,11 @@ export class Informe {
   @Column({ name: 'ciclo_id', type: 'bigint' })
   cicloId: string;
 
+  @ManyToOne(() => CicloAcreditacion)
+  @JoinColumn({ name: 'ciclo_id' })
+  ciclo: CicloAcreditacion;
+
+  /** Semestre del informe: "2026-1", "2026-2"… (ver SEMESTRES en modules/informes/reglas.ts). */
   @Column({ name: 'nombre_periodo', length: 120 })
   nombrePeriodo: string;
 
@@ -375,6 +380,12 @@ export class VersionInforme {
   @Column({ name: 'creado_por', type: 'bigint' })
   creadoPor: string;
 
+  @Column({ name: 'creado_en', type: 'datetime', insert: false, update: false })
+  creadoEn: Date;
+
+  @Column({ name: 'enviado_en', type: 'datetime', nullable: true })
+  enviadoEn: Date | null;
+
   @Column({ name: 'aprobado_en', type: 'datetime', nullable: true })
   aprobadoEn: Date | null;
 }
@@ -409,6 +420,112 @@ export class AvanceRecomendacion {
 
   @Column({ name: 'actualizado_en', type: 'datetime', insert: false, update: false })
   actualizadoEn: Date;
+
+  @OneToMany(() => Evidencia, (e) => e.avance)
+  evidencias: Evidencia[];
+}
+
+/** HU-07: archivo convertido a PDF en la carpeta del ciclo, o enlace externo (Plan B). */
+@Entity('evidencia')
+export class Evidencia {
+  @PrimaryGeneratedColumn({ name: 'evidencia_id', type: 'bigint' })
+  id: string;
+
+  @Column({ name: 'avance_id', type: 'bigint' })
+  avanceId: string;
+
+  @ManyToOne(() => AvanceRecomendacion, (a) => a.evidencias)
+  @JoinColumn({ name: 'avance_id' })
+  avance: AvanceRecomendacion;
+
+  @Column({ type: 'varchar', length: 10 })
+  origen: 'ARCHIVO' | 'URL';
+
+  /** Nombre que subió el usuario (o el texto del enlace). Solo se muestra; nunca se usa como ruta. */
+  @Column({ name: 'nombre_original', type: 'varchar', length: 255 })
+  nombreOriginal: string;
+
+  /** Nombre generado por el sistema dentro de la carpeta (null en enlaces). */
+  @Column({ name: 'nombre_guardado', type: 'varchar', length: 255, nullable: true })
+  nombreGuardado: string | null;
+
+  /** Archivo: ruta lógica /Evidencias/... · Enlace: la URL. */
+  @Column({ type: 'text' })
+  ubicacion: string;
+
+  /** Enlace de Drive cuando exista ese proveedor. */
+  @Column({ name: 'url_vista', type: 'varchar', length: 500, nullable: true })
+  urlVista: string | null;
+
+  @Column({ name: 'tipo_mime', type: 'varchar', length: 120 })
+  tipoMime: string;
+
+  @Column({ name: 'tamano_bytes', type: 'bigint', nullable: true })
+  tamanoBytes: string | null;
+
+  @Column({ name: 'checksum_sha256', type: 'char', length: 64, nullable: true })
+  checksumSha256: string | null;
+
+  @Column({ name: 'cargada_por', type: 'bigint' })
+  cargadaPor: string;
+
+  @ManyToOne(() => Usuario)
+  @JoinColumn({ name: 'cargada_por' })
+  usuario: Usuario;
+
+  @Column({ name: 'cargada_en', type: 'datetime', insert: false, update: false })
+  cargadaEn: Date;
+}
+
+/** HU-08: cada validación, devolución o reapertura (la reapertura se guarda como DEVUELTO con su motivo). */
+@Entity('revision_informe')
+export class RevisionInforme {
+  @PrimaryGeneratedColumn({ name: 'revision_informe_id', type: 'bigint' })
+  id: string;
+
+  @Column({ name: 'version_informe_id', type: 'bigint' })
+  versionInformeId: string;
+
+  @Column({ name: 'revisor_id', type: 'bigint' })
+  revisorId: string;
+
+  @ManyToOne(() => Usuario)
+  @JoinColumn({ name: 'revisor_id' })
+  revisor: Usuario;
+
+  @Column({ type: 'varchar', length: 20 })
+  decision: 'APROBADO' | 'DEVUELTO';
+
+  @Column({ name: 'comentario_general', type: 'text', nullable: true })
+  comentarioGeneral: string | null;
+
+  @Column({ name: 'revisado_en', type: 'datetime', insert: false, update: false })
+  revisadoEn: Date;
+
+  @OneToMany(() => ObservacionInforme, (o) => o.revision)
+  observaciones: ObservacionInforme[];
+}
+
+@Entity('observacion_informe')
+export class ObservacionInforme {
+  @PrimaryGeneratedColumn({ name: 'observacion_informe_id', type: 'bigint' })
+  id: string;
+
+  @Column({ name: 'revision_informe_id', type: 'bigint' })
+  revisionInformeId: string;
+
+  @ManyToOne(() => RevisionInforme, (r) => r.observaciones)
+  @JoinColumn({ name: 'revision_informe_id' })
+  revision: RevisionInforme;
+
+  @Column({ name: 'recomendacion_id', type: 'bigint', nullable: true })
+  recomendacionId: string | null;
+
+  @Column({ type: 'text' })
+  comentario: string;
+
+  @Column({ name: 'creada_en', type: 'datetime', insert: false, update: false })
+  creadaEn: Date;
 }
 
 export const ENTIDADES_PLAN = [
@@ -427,4 +544,7 @@ export const ENTIDADES_PLAN = [
   Informe,
   VersionInforme,
   AvanceRecomendacion,
+  Evidencia,
+  RevisionInforme,
+  ObservacionInforme,
 ];

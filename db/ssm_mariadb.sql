@@ -315,24 +315,32 @@ CREATE TABLE avance_recomendacion (
     CONSTRAINT fk_avance_recomendacion FOREIGN KEY (recomendacion_id) REFERENCES recomendacion(recomendacion_id),
     CONSTRAINT fk_avance_actualizado_por FOREIGN KEY (actualizado_por) REFERENCES usuario(usuario_id),
     CONSTRAINT uq_avance_version_recomendacion UNIQUE (version_informe_id, recomendacion_id),
-    CONSTRAINT ck_avance_porcentaje CHECK (porcentaje >= 0 AND porcentaje <= 100)
+    CONSTRAINT ck_avance_porcentaje CHECK (porcentaje >= 0 AND porcentaje <= 100),
+    -- Entero de 0 a 100 escrito con teclado (bloque Informe, 25/11/2026).
+    CONSTRAINT ck_avance_entero CHECK (porcentaje = FLOOR(porcentaje))
 ) ENGINE=InnoDB;
 
 CREATE TABLE evidencia (
     evidencia_id    BIGINT AUTO_INCREMENT PRIMARY KEY,
     avance_id       BIGINT NOT NULL,
+    -- ARCHIVO: PDF guardado en la carpeta del ciclo · URL: enlace externo (Plan B de HU-07).
+    origen          VARCHAR(10) NOT NULL DEFAULT 'ARCHIVO',
     nombre_original VARCHAR(255) NOT NULL,
-    nombre_guardado VARCHAR(255) NOT NULL,
+    nombre_guardado VARCHAR(255) NULL,
+    -- Archivo: ruta lógica en la carpeta del ciclo · Enlace: la URL.
     ubicacion       TEXT NOT NULL,
+    -- Enlace de Drive cuando exista ese proveedor.
+    url_vista       VARCHAR(500) NULL,
     tipo_mime       VARCHAR(120) NOT NULL DEFAULT 'application/pdf',
-    tamano_bytes    BIGINT NOT NULL,
+    tamano_bytes    BIGINT NULL,
     checksum_sha256 CHAR(64),
     cargada_por     BIGINT NOT NULL,
     cargada_en      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_evidencia_avance FOREIGN KEY (avance_id) REFERENCES avance_recomendacion(avance_id),
     CONSTRAINT fk_evidencia_cargada_por FOREIGN KEY (cargada_por) REFERENCES usuario(usuario_id),
     CONSTRAINT ck_evidencia_pdf CHECK (tipo_mime = 'application/pdf'),
-    CONSTRAINT ck_evidencia_tamano CHECK (tamano_bytes > 0)
+    CONSTRAINT ck_evidencia_origen CHECK (origen IN ('ARCHIVO', 'URL')),
+    CONSTRAINT ck_evidencia_archivo CHECK (origen = 'URL' OR (tamano_bytes > 0 AND nombre_guardado IS NOT NULL))
 ) ENGINE=InnoDB;
 
 CREATE TABLE revision_informe (

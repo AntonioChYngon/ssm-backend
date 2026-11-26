@@ -5,6 +5,7 @@
 //    (src/database/cuentas-coordinaciones.ts) y la contraseña SEED_CUENTAS_PASSWORD, marcada como temporal:
 //    al primer inicio de sesión el sistema obliga a cambiarla.
 // 4. Si SEED_DATOS_DESARROLLO=true y aún no hay planes, carga db/datos_desarrollo.sql.
+//    Además crea (si faltan) los PDF de ejemplo de las evidencias de archivo en CARPETAS_DIR.
 // Uso:  npm run seed   (lee el .env). Se puede correr varias veces sin duplicar nada.
 import 'reflect-metadata';
 import 'dotenv/config';
@@ -15,6 +16,7 @@ import { DataSource, EntityManager } from 'typeorm';
 import { Rol } from '../common/enums';
 import { esContrasenaSegura, esCorreoInstitucional, leerDominios } from '../modules/auth/dominio';
 import { CUENTAS_COORDINACIONES } from './cuentas-coordinaciones';
+import { asegurarArchivosDeEjemplo } from './evidencias-ejemplo';
 import { AsignacionUsuario, Coordinacion, ENTIDADES_ACCESO, Licenciatura, Usuario } from './entities';
 
 type UsuarioSemilla = { correo: string; contrasena: string; nombre: string; apellido: string; rol: Rol; temporal?: boolean };
@@ -130,8 +132,11 @@ const main = async () => {
       console.log('• Datos de desarrollo: ya existen planes, no se cargan de nuevo.');
     } else {
       await ds.transaction((tx) => tx.query(leerSql('datos_desarrollo.sql')));
-      console.log('✔ Datos de desarrollo cargados (planes, recomendaciones y avances de prueba).');
+      console.log('✔ Datos de desarrollo cargados (planes, recomendaciones, informes y evidencias de prueba).');
     }
+    const carpetas = process.env.CARPETAS_DIR ?? 'storage';
+    const archivos = await asegurarArchivosDeEjemplo(ds, carpetas);
+    if (archivos.total) console.log(`✔ PDF de ejemplo de evidencias en ${carpetas}: ${archivos.creados} creados, ${archivos.total - archivos.creados} ya existían.`);
   }
 
   await ds.destroy();
