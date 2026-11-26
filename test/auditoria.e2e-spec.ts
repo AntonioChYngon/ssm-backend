@@ -1,5 +1,5 @@
 // HU-03 · Auditoría de cambios y trazabilidad. Usa Arquitectura (ciclo vigente y sin plan en los datos de desarrollo),
-// que ninguna otra prueba toca. Las pruebas del visor y la bitácora se agregan abajo.
+// que ninguna otra prueba toca. Incluye la bitácora del Administrador y la línea de tiempo por recomendación.
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { DataSource } from 'typeorm';
@@ -63,6 +63,31 @@ describe('HU-03 · auditoría de cambios', () => {
     expect(body.estado).toBe('BORRADOR');
     const ultimo = (await registrosDe(recomendacionId)).at(-1);
     expect(ultimo).toMatchObject({ campo: 'metas', valor_anterior: null, valor_nuevo: 'Abrir 3 optativas (2027-06-30, 50%)', rol_codigo: 'CAPTURA' });
+  });
+
+  it('la línea de tiempo de la recomendación muestra cada cambio en orden, con usuario y rol', async () => {
+    const { body } = await api().get(`/api/auditoria/recomendaciones/${recomendacionId}`).set('Authorization', `Bearer ${admin}`).expect(200);
+    expect(body.map((e: { campo: string }) => e.campo)).toEqual(['creada (borrador)', 'recomendación', 'fecha de cumplimiento', 'metas']);
+    expect(body[1]).toMatchObject({ rol: 'AUXILIAR', accion: 'Editó una recomendación del plan', anterior: 'Recomendación HU-03 original', nuevo: 'Recomendación HU-03 corregida' });
+    expect(body[1].contexto).toMatch(/^Arquitectura · Recomendación: /);
+    expect(body[1].usuario.nombre).toEqual(expect.any(String));
+  });
+
+  it('la bitácora filtra por área, rol, licenciatura y búsqueda, con paginación', async () => {
+    const [{ id: arq }] = await dataSource.query("SELECT licenciatura_id AS id FROM licenciatura WHERE clave = 'ARQ'");
+    const { body } = await api().get(`/api/auditoria?area=PLAN&rol=AUXILIAR&licenciaturaIds=${arq}&q=HU-03`).set('Authorization', `Bearer ${admin}`).expect(200);
+    expect(body.total).toBeGreaterThanOrEqual(2);
+    expect(body.eventos.every((e: { rol: string; licenciatura: string }) => e.rol === 'AUXILIAR' && e.licenciatura === 'Arquitectura')).toBe(true);
+    const pagina = await api().get('/api/auditoria?limite=1&pagina=2').set('Authorization', `Bearer ${admin}`).expect(200);
+    expect(pagina.body).toMatchObject({ pagina: 2, limite: 1 });
+    expect(pagina.body.eventos).toHaveLength(1);
+    await api().get('/api/auditoria?area=OTRA').set('Authorization', `Bearer ${admin}`).expect(400);
+    await api().get('/api/auditoria?desde=25-11-2026').set('Authorization', `Bearer ${admin}`).expect(400);
+  });
+
+  it('solo el Administrador consulta la bitácora y el historial', async () => {
+    await api().get('/api/auditoria').set('Authorization', `Bearer ${arquitectura}`).expect(403);
+    await api().get(`/api/auditoria/recomendaciones/${recomendacionId}`).set('Authorization', `Bearer ${auxiliar}`).expect(403);
   });
 
   it('la bitácora no se puede editar ni borrar, ni siquiera directo en la base', async () => {
