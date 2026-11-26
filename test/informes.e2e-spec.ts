@@ -129,15 +129,18 @@ describe('Bloque Informe · base (consulta, permisos y evidencias)', () => {
   });
 
   describe('HU-09 · exportación en PDF y Word', () => {
-    const binario = (res: NodeJS.ReadableStream, callback: (error: Error | null, cuerpo: Buffer) => void) => {
-      const partes: Buffer[] = [];
-      res.on('data', (parte: Buffer) => partes.push(parte));
-      res.on('end', () => callback(null, Buffer.concat(partes)));
-    };
+    // El cuerpo llega como Buffer; el parser se escribe en línea para que tome los tipos de supertest.
+    const descargar = (id: string, formato: 'pdf' | 'docx', token: string) =>
+      api().get(`/api/informes/${id}/${formato}`).set('Authorization', `Bearer ${token}`)
+        .buffer(true).parse((res, callback) => {
+          const partes: Buffer[] = [];
+          res.on('data', (parte: Buffer) => partes.push(parte));
+          res.on('end', () => callback(null, Buffer.concat(partes)));
+        });
 
     it('el Administrador descarga el informe en PDF con las evidencias como enlaces', async () => {
       const { id } = buscar('Derecho', '2027-1');
-      const r = await api().get(`/api/informes/${id}/pdf`).set('Authorization', `Bearer ${admin}`).buffer(true).parse(binario)
+      const r = await descargar(id, 'pdf', admin)
         .expect('Content-Type', /application\/pdf/)
         .expect('Content-Disposition', /filename="informe-de-seguimiento-derecho-2027-1\.pdf"/)
         .expect(200);
@@ -149,7 +152,7 @@ describe('Bloque Informe · base (consulta, permisos y evidencias)', () => {
 
     it('y en Word editable con hipervínculos externos', async () => {
       const { id } = buscar('Derecho', '2027-1');
-      const r = await api().get(`/api/informes/${id}/docx`).set('Authorization', `Bearer ${admin}`).buffer(true).parse(binario)
+      const r = await descargar(id, 'docx', admin)
         .expect('Content-Type', /wordprocessingml\.document/)
         .expect('Content-Disposition', /filename="informe-de-seguimiento-derecho-2027-1\.docx"/)
         .expect(200);
