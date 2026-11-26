@@ -112,8 +112,34 @@ Plan completo y lista de decisiones en el proyecto del equipo (`bloque-informe-p
   La reapertura se guarda en `revision_informe` como `DEVUELTO` con su motivo.
 - `editable` y `bloqueo` los calcula solo el backend. Otra licenciatura responde 404 (no se revela que el informe exista).
 - El Plan de Mejora no se toca: el informe tiene sus propias reglas (`informes/reglas.ts`).
-- Endpoints de la base: `GET /informes` (filtros `estado`, `licenciaturaId`, `cicloId`, `periodo`), `GET /informes/mio`,
-  `GET /informes/:id` y `GET /evidencias/:id/archivo`. El `id` de un informe es su `version_informe_id`.
+- Para subir o enlazar una evidencia, primero se captura el % de su recomendación (la evidencia cuelga del avance).
+- Endpoints (el `id` de un informe es su `version_informe_id`; toda acción responde el informe completo):
+  - Consulta: `GET /informes` (filtros `estado`, `licenciaturaId`, `licenciaturaIds`, `cicloId`, `periodo`), `GET /informes/mio`,
+    `GET /informes/:id`, `GET /evidencias/:id/archivo`.
+  - Coordinación (HU-07): `POST /ciclos/:cicloId/informes`, `PUT /informes/:id/avances/:recomendacionId`,
+    `POST /informes/:id/avances/:recomendacionId/evidencias` (multipart `archivo`), `POST …/enlaces`, `DELETE /evidencias/:id`,
+    `POST /informes/:id/enviar` (avisa a los Administradores, HU-11).
+  - Administrador (HU-08): `POST /informes/:id/validar`, `/devolver` (motivo + observaciones por recomendación), `/reabrir` (motivo).
+- Errores: 400 validación, 403 rol, 404 otra licenciatura o recomendación ajena, 409 estado o ciclo cerrado,
+  413 peso, 415 tipo, 503 conversión o carpeta (la interfaz ofrece reintentar o el enlace).
+
+## D10 · Auditoría por campo y bitácora (HU-03) · 25/11/2026
+- Cada guardado registra **una fila por campo que cambió** (`AuditoriaService.registrarCambios`), con valor anterior y nuevo
+  y el rol de la sesión (Captura o Auxiliar). Si nada cambió no se registra nada. Crear y eliminar siguen siendo una fila.
+- Plan: categoría, indicador, recomendación, acciones, metas (con fecha y %), área responsable y fecha de cumplimiento.
+- Informe: `entidad = avance_recomendacion` con `entidad_id` = **id de la recomendación** y el semestre en el campo
+  ("porcentaje · Informe 2027-1", "evidencia agregada · Informe 2027-1"). Así la línea de tiempo de una recomendación
+  junta su captura en el plan y su avance en todos los informes. Los cambios de estado van en `version_informe`.
+- `GET /auditoria` (Administrador): filtros `rol`, `area` (SESIONES, CUENTAS, PLAN, INFORME, CICLOS), `desde`/`hasta`
+  (día de la Ciudad de México), `q`, `licenciaturaIds`, `pagina`, `limite`. La licenciatura de un registro es la de lo que
+  se modificó, no la de quien lo hizo. `GET /auditoria/recomendaciones/:id`: línea de tiempo, de lo más antiguo a lo más reciente.
+- La bitácora sigue siendo inmutable (triggers `trg_auditoria_sin_update` y `trg_auditoria_sin_delete`). Mi perfil agrupa las
+  filas de un mismo guardado en un solo movimiento.
+
+## D11 · Varias licenciaturas para el Administrador (HU-13) · 25/11/2026
+- `licenciaturaIds=1,2,3` en `GET /planes`, `/informes`, `/ciclos` y `/auditoria`; sin el parámetro, todas.
+- Captura y Auxiliar siguen limitados a su licenciatura: el filtro solo reduce, nunca amplía (pruebas en `test/multicarrera.e2e-spec.ts`).
+- El dashboard, los reportes (HU-14, HU-15) y el histórico (HU-16) todavía usan datos de ejemplo; usarán el mismo parámetro.
 
 ## Bases de datos existentes
 Cada cambio de esquema tiene su script en `db/migraciones/`. En desarrollo es más fácil recrear la base:

@@ -65,7 +65,7 @@ Prefijo `/api`. Todas piden `Authorization: Bearer <token>`, salvo las públicas
 | `POST /ciclos/:cicloId/carpeta` (crear la carpeta de un ciclo que no la tiene) | Administrador | HU-18 |
 | `GET /notificaciones` · `PATCH /notificaciones/:id/leida` | cualquier sesión | HU-10 |
 
-El Informe de Seguimiento (HU-07, HU-08, HU-11) vive en `src/modules/informes/` (decisiones en `docs/decisiones.md`, D9). En una base existente aplica `db/migraciones/2026-11-27_informe_evidencias.sql`.
+El Informe de Seguimiento (HU-07, HU-08, HU-11) vive en `src/modules/informes/` (decisiones en `docs/decisiones.md`, D9); la auditoría por campo y la bitácora (HU-03) en `src/modules/auditoria/` (D10); el filtro de varias licenciaturas (HU-13) en `src/common/licenciaturas.ts` (D11). En una base existente aplica `db/migraciones/2026-11-27_informe_evidencias.sql`.
 El resto de los módulos (reportes) se está migrando al esquema del equipo; ver `src/modules/_por-migrar/LEEME.md`.
 
 ## Reglas del Plan de Mejora
