@@ -37,6 +37,14 @@ export type RecomendacionReporte = {
   fechaCumplimiento: string | null;
 };
 
+/** "1. Capacitar al 80% · 30/06/2027 · 50%", una meta por renglón (plan e informe). */
+export const textoMetas = (metas: Meta[]) =>
+  metas.length
+    ? metas
+        .map((m, i) => `${i + 1}. ${m.descripcion}${m.fechaCompromiso ? ` · ${fechaCorta(m.fechaCompromiso)}` : ''}${m.porcentajeEsperado === null ? '' : ` · ${m.porcentajeEsperado}%`}`)
+        .join('\n')
+    : '—';
+
 /** Texto de cada celda (los saltos de línea separan acciones y metas). */
 export const celdasRecomendacion = (r: RecomendacionReporte) => [
   String(r.numero),
@@ -44,11 +52,7 @@ export const celdasRecomendacion = (r: RecomendacionReporte) => [
   r.indicador,
   r.descripcion,
   r.acciones.length ? r.acciones.map((a, i) => `${i + 1}. ${a}`).join('\n') : '—',
-  r.metas.length
-    ? r.metas
-        .map((m, i) => `${i + 1}. ${m.descripcion}${m.fechaCompromiso ? ` · ${fechaCorta(m.fechaCompromiso)}` : ''}${m.porcentajeEsperado === null ? '' : ` · ${m.porcentajeEsperado}%`}`)
-        .join('\n')
-    : '—',
+  textoMetas(r.metas),
   r.areaResponsable ?? '—',
   fechaCorta(r.fechaCumplimiento),
 ];
