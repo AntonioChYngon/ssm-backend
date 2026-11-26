@@ -3,8 +3,8 @@
 //   consulta.service.ts  · base compartida (lectura, permisos, InformeDetalle)
 //   captura.service.ts   · HU-07 (línea A): iniciar, avances, enlaces, enviar          → pendiente
 //   evidencias.service.ts· HU-07 (línea A): subida, conversión, baja                   → pendiente
-//   revision.service.ts  · HU-08 + HU-11 (línea B): validar, devolver, reabrir, avisos → pendiente
-import { Controller, Get, Module, Param, Query, StreamableFile } from '@nestjs/common';
+//   revision.service.ts  · HU-08 + HU-11: validar, devolver, reabrir y aviso de entrega
+import { Body, Controller, Get, HttpCode, Module, Param, Post, Query, StreamableFile } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Roles, UsuarioActual, UsuarioToken } from '../../common/auth';
@@ -12,8 +12,9 @@ import { Rol } from '../../common/enums';
 import { AvanceRecomendacion, CicloAcreditacion, Evidencia, Informe, RevisionInforme, VersionInforme, VersionPlan } from '../../database/plan.entities';
 import { proveedorCarpetas } from '../planes/carpetas';
 import { ConsultaInformesService } from './consulta.service';
-import { FiltrosInformesDto } from './contrato';
+import { DevolverInformeDto, FiltrosInformesDto, ReabrirInformeDto, ValidarInformeDto } from './contrato';
 import { conversorPdf } from './conversor';
+import { RevisionInformesService } from './revision.service';
 
 const CAPTURA = [Rol.CAPTURA, Rol.AUXILIAR];
 
@@ -21,7 +22,10 @@ const CAPTURA = [Rol.CAPTURA, Rol.AUXILIAR];
 @ApiBearerAuth()
 @Controller()
 export class InformesController {
-  constructor(private readonly consulta: ConsultaInformesService) {}
+  constructor(
+    private readonly consulta: ConsultaInformesService,
+    private readonly revision: RevisionInformesService,
+  ) {}
 
   /** Listado: el Administrador ve todos; Captura y Auxiliar, los de su licenciatura. */
   @Get('informes')
@@ -41,6 +45,29 @@ export class InformesController {
     return this.consulta.obtener(usuario, id);
   }
 
+  // ----- HU-08 · Revisión (solo Administrador) -----
+
+  @Post('informes/:id/validar')
+  @HttpCode(200)
+  @Roles(Rol.ADMINISTRADOR)
+  validar(@UsuarioActual() usuario: UsuarioToken, @Param('id') id: string, @Body() dto: ValidarInformeDto) {
+    return this.revision.validar(usuario, id, dto);
+  }
+
+  @Post('informes/:id/devolver')
+  @HttpCode(200)
+  @Roles(Rol.ADMINISTRADOR)
+  devolver(@UsuarioActual() usuario: UsuarioToken, @Param('id') id: string, @Body() dto: DevolverInformeDto) {
+    return this.revision.devolver(usuario, id, dto);
+  }
+
+  @Post('informes/:id/reabrir')
+  @HttpCode(200)
+  @Roles(Rol.ADMINISTRADOR)
+  reabrir(@UsuarioActual() usuario: UsuarioToken, @Param('id') id: string, @Body() dto: ReabrirInformeDto) {
+    return this.revision.reabrir(usuario, id, dto);
+  }
+
   /** PDF de una evidencia guardada en la carpeta local. El navegador lo abre como blob: en una pestaña nueva. */
   @Get('evidencias/:id/archivo')
   async archivo(@UsuarioActual() usuario: UsuarioToken, @Param('id') id: string) {
@@ -56,7 +83,7 @@ export class InformesController {
 @Module({
   imports: [TypeOrmModule.forFeature([Informe, VersionInforme, AvanceRecomendacion, Evidencia, RevisionInforme, CicloAcreditacion, VersionPlan])],
   controllers: [InformesController],
-  providers: [ConsultaInformesService, proveedorCarpetas, conversorPdf],
+  providers: [ConsultaInformesService, RevisionInformesService, proveedorCarpetas, conversorPdf],
   exports: [ConsultaInformesService],
 })
 export class InformesModule {}
