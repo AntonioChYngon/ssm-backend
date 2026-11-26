@@ -127,4 +127,44 @@ describe('Bloque Informe · base (consulta, permisos y evidencias)', () => {
       await api().get('/api/informes/mio').set('Authorization', `Bearer ${admin}`).expect(403);
     });
   });
+
+  describe('HU-09 · exportación en PDF y Word', () => {
+    // El cuerpo llega como Buffer; el parser se escribe en línea para que tome los tipos de supertest.
+    const descargar = (id: string, formato: 'pdf' | 'docx', token: string) =>
+      api().get(`/api/informes/${id}/${formato}`).set('Authorization', `Bearer ${token}`)
+        .buffer(true).parse((res, callback) => {
+          const partes: Buffer[] = [];
+          res.on('data', (parte: Buffer) => partes.push(parte));
+          res.on('end', () => callback(null, Buffer.concat(partes)));
+        });
+
+    it('el Administrador descarga el informe en PDF con las evidencias como enlaces', async () => {
+      const { id } = buscar('Derecho', '2027-1');
+      const r = await descargar(id, 'pdf', admin)
+        .expect('Content-Type', /application\/pdf/)
+        .expect('Content-Disposition', /filename="informe-de-seguimiento-derecho-2027-1\.pdf"/)
+        .expect(200);
+      const pdf = (r.body as Buffer).toString('latin1');
+      expect(pdf.startsWith('%PDF-1.4')).toBe(true);
+      expect(pdf).toContain('/Subtype /Link');
+      expect(pdf).toMatch(/\/URI \(https?:\/\//);
+    });
+
+    it('y en Word editable con hipervínculos externos', async () => {
+      const { id } = buscar('Derecho', '2027-1');
+      const r = await descargar(id, 'docx', admin)
+        .expect('Content-Type', /wordprocessingml\.document/)
+        .expect('Content-Disposition', /filename="informe-de-seguimiento-derecho-2027-1\.docx"/)
+        .expect(200);
+      const docx = r.body as Buffer;
+      expect(docx.subarray(0, 2).toString()).toBe('PK');
+      expect(docx.includes(Buffer.from('word/media/logo-fes-acatlan.jpeg'))).toBe(true);
+    });
+
+    it('la coordinación no puede exportar el informe de otra licenciatura', async () => {
+      const { id } = buscar('Derecho', '2027-1');
+      await api().get(`/api/informes/${id}/pdf`).set('Authorization', `Bearer ${captura}`).expect(404);
+      await api().get(`/api/informes/${id}/docx`).set('Authorization', `Bearer ${captura}`).expect(404);
+    });
+  });
 });

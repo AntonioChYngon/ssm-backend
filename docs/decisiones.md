@@ -16,6 +16,7 @@ Si una decisión cambia, edita su sección y anota la nueva fecha; no borres el 
 | D6 | Catálogo base | Reemplazada: los catálogos salen de Catálogos.xlsx (`db/catalogos_base.sql`) | Todas |
 | D7 | Ciclo de acreditación por licenciatura | Implementada en HU-18 | HU-04, HU-06, HU-16, HU-18 |
 | D8 | Metas medibles y fecha/% en la captura del plan | Implementada | HU-04, HU-12 |
+| D12 | Exportación del informe y enlaces a evidencias | Implementada (Drive pendiente) | HU-09 |
 
 > Las propuestas D2–D4 se discutieron en el Sprint 1 pero su código quedó en la rama `hu-04-plan`, que no se unió.
 > Antes de implementarlas, confírmenlas contra `Historias de usuario corregida.docx`.
@@ -140,6 +141,18 @@ Plan completo y lista de decisiones en el proyecto del equipo (`bloque-informe-p
 - `licenciaturaIds=1,2,3` en `GET /planes`, `/informes`, `/ciclos` y `/auditoria`; sin el parámetro, todas.
 - Captura y Auxiliar siguen limitados a su licenciatura: el filtro solo reduce, nunca amplía (pruebas en `test/multicarrera.e2e-spec.ts`).
 - El dashboard, los reportes (HU-14, HU-15) y el histórico (HU-16) todavía usan datos de ejemplo; usarán el mismo parámetro.
+
+## D12 · Exportación del Informe de Seguimiento (HU-09) · 26/11/2026
+- `GET /informes/:id/pdf` y `GET /informes/:id/docx`, con el mismo membrete que el plan (HU-06). Los generadores de PDF y Word
+  quedaron genéricos en `src/modules/planes/membrete/` (`reporte-pdf.ts`, `reporte-docx.ts`) y los usan plan e informe.
+- **Cualquier estado se puede exportar**, pero si el informe no está APROBADO el documento lleva el aviso
+  "Versión preliminar: este informe aún no ha sido validado por la Unidad de Planeación". La HU habla del informe validado.
+- **Evidencias como hipervínculos clickeables** (anotaciones /Link en el PDF, `w:hyperlink` en Word):
+  - enlaces (Plan B) y archivos con vista de Drive: su URL tal cual;
+  - archivos en la carpeta local: `FRONTEND_URL/evidencias/:id`, una página del sistema que pide iniciar sesión y abre el PDF.
+    El login regresa a esa página (solo se aceptan rutas `/evidencias/...`). El documento avisa que esas evidencias piden sesión.
+- **Permisos para evaluadores externos:** dependen de Drive. Cuando exista el proveedor `drive`, las evidencias tendrán `url_vista`
+  y el reporte exportará ese enlace; los permisos de visualización se configuran al crear el archivo en Drive.
 
 ## Bases de datos existentes
 Cada cambio de esquema tiene su script en `db/migraciones/`. En desarrollo es más fácil recrear la base:

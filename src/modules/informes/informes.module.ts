@@ -6,17 +6,21 @@
 //   revision.service.ts  · HU-08 + HU-11: validar, devolver, reabrir y aviso de entrega
 import { BadRequestException, Body, Controller, Delete, Get, HttpCode, Module, Param, Post, Put, Query, StreamableFile, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { ConfigService } from '@nestjs/config';
 import { ApiBearerAuth, ApiConsumes, ApiTags } from '@nestjs/swagger';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Roles, UsuarioActual, UsuarioToken } from '../../common/auth';
 import { Rol } from '../../common/enums';
 import { AvanceRecomendacion, CicloAcreditacion, Evidencia, Informe, RevisionInforme, VersionInforme, VersionPlan } from '../../database/plan.entities';
 import { proveedorCarpetas } from '../planes/carpetas';
+import { generarDocxReporte } from '../planes/membrete/reporte-docx';
+import { generarPdfReporte } from '../planes/membrete/reporte-pdf';
 import { CapturaInformesService } from './captura.service';
 import { ConsultaInformesService } from './consulta.service';
 import { AvanceDto, DevolverInformeDto, EnlaceDto, FiltrosInformesDto, ReabrirInformeDto, ValidarInformeDto } from './contrato';
 import { conversorPdf } from './conversor';
 import { type ArchivoSubido, EvidenciasInformesService, megasEvidencia } from './evidencias.service';
+import { nombreArchivoInforme, reporteInforme } from './reporte';
 import { RevisionInformesService } from './revision.service';
 
 const CAPTURA = [Rol.CAPTURA, Rol.AUXILIAR];
@@ -30,6 +34,7 @@ export class InformesController {
     private readonly revision: RevisionInformesService,
     private readonly captura: CapturaInformesService,
     private readonly evidencias: EvidenciasInformesService,
+    private readonly config: ConfigService,
   ) {}
 
   /** Listado: el Administrador ve todos; Captura y Auxiliar, los de su licenciatura. */
@@ -48,6 +53,32 @@ export class InformesController {
   @Get('informes/:id')
   obtener(@UsuarioActual() usuario: UsuarioToken, @Param('id') id: string) {
     return this.consulta.obtener(usuario, id);
+  }
+
+  // ----- HU-09 · Exportación (Administrador y la coordinación de esa licenciatura) -----
+
+  /** Informe de Seguimiento en PDF con membrete y evidencias como hipervínculos. */
+  @Get('informes/:id/pdf')
+  async exportarPdf(@UsuarioActual() usuario: UsuarioToken, @Param('id') id: string) {
+    const informe = await this.consulta.obtener(usuario, id);
+    return new StreamableFile(generarPdfReporte(reporteInforme(informe, this.frontendUrl())), {
+      type: 'application/pdf',
+      disposition: `attachment; filename="${nombreArchivoInforme(informe)}.pdf"`,
+    });
+  }
+
+  /** El mismo reporte en Word editable (.docx). */
+  @Get('informes/:id/docx')
+  async exportarWord(@UsuarioActual() usuario: UsuarioToken, @Param('id') id: string) {
+    const informe = await this.consulta.obtener(usuario, id);
+    return new StreamableFile(generarDocxReporte(reporteInforme(informe, this.frontendUrl())), {
+      type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      disposition: `attachment; filename="${nombreArchivoInforme(informe)}.docx"`,
+    });
+  }
+
+  private frontendUrl() {
+    return this.config.get<string>('FRONTEND_URL', 'http://localhost:3000');
   }
 
   // ----- HU-07 · Captura (Captura y Auxiliar) -----
