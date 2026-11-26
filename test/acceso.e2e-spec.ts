@@ -220,6 +220,17 @@ describe('Acceso (HU-01) y endpoints base de HU-02, HU-04 y HU-15', () => {
           .expect('Content-Type', /application\/pdf/)
           .expect('Content-Disposition', /attachment; filename=/)
           .expect(200);
+        // HU-06: el mismo reporte en Word editable, con el logotipo incrustado (archivo ZIP de Office).
+        const word = await api().get(`/api/planes/${planId}/docx`).set('Authorization', `Bearer ${captura}`)
+          .buffer(true).parse((res, callback) => {
+            const partes: Buffer[] = [];
+            res.on('data', (parte: Buffer) => partes.push(parte));
+            res.on('end', () => callback(null, Buffer.concat(partes)));
+          })
+          .expect('Content-Type', /wordprocessingml\.document/)
+          .expect('Content-Disposition', /filename="plan-de-mejora-actuaria-2024-2029\.docx"/)
+          .expect(200);
+        expect((word.body as Buffer).subarray(0, 2).toString()).toBe('PK');
       });
 
       it('Enviar a validación exige recomendaciones completas', async () => {

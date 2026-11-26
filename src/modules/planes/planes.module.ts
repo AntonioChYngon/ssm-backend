@@ -59,6 +59,7 @@ import { textoMeta, type Instantanea } from '../auditoria/cambios';
 import { NotificacionesService } from '../notificaciones/notificaciones.module';
 import { proveedorCarpetas } from './carpetas';
 import { CiclosController, CiclosService } from './ciclos';
+import { generarDocxPlan } from './docx';
 import { generarPdfPlan } from './pdf';
 import {
   cicloActivo,
@@ -78,6 +79,15 @@ import {
   verificarCicloAbierto,
   verificarTransicion,
 } from './reglas';
+
+/** Nombre de archivo sin acentos ni espacios: plan-de-mejora-actuaria-2024-2029 */
+const nombreReporte = (plan: { licenciatura: string; ciclo: string }) =>
+  `plan-de-mejora-${plan.licenciatura}-${plan.ciclo}`
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9-]+/g, '-')
+    .replace(/-+/g, '-')
+    .toLowerCase();
 
 // ---------- Contrato (debe coincidir con ssm-frontend/src/lib/types.ts) ----------
 
@@ -728,14 +738,23 @@ export class PlanesController {
     return this.servicio.obtener(usuario, id);
   }
 
+  /** HU-06: Plan de Mejora Continua en PDF con membrete institucional. */
   @Get('planes/:id/pdf')
   async reportePdf(@UsuarioActual() usuario: UsuarioToken, @Param('id') id: string) {
     const plan = await this.servicio.obtener(usuario, id);
-    const nombre = `plan-${plan.licenciatura}-${plan.ciclo}`
-      .normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9-]+/g, '-').toLowerCase();
     return new StreamableFile(generarPdfPlan(plan), {
       type: 'application/pdf',
-      disposition: `attachment; filename="${nombre}.pdf"`,
+      disposition: `attachment; filename="${nombreReporte(plan)}.pdf"`,
+    });
+  }
+
+  /** HU-06: el mismo reporte en Word editable (.docx). */
+  @Get('planes/:id/docx')
+  async reporteWord(@UsuarioActual() usuario: UsuarioToken, @Param('id') id: string) {
+    const plan = await this.servicio.obtener(usuario, id);
+    return new StreamableFile(generarDocxPlan(plan), {
+      type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      disposition: `attachment; filename="${nombreReporte(plan)}.docx"`,
     });
   }
 

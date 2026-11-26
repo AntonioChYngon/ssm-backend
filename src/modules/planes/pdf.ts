@@ -1,27 +1,12 @@
-type MetaPdf = {
-  descripcion: string;
-  fechaCompromiso: string | null;
-  porcentajeEsperado: number | null;
-};
+// HU-04/HU-06 · Plan de Mejora Continua en PDF, escrito a mano (sin binarios del sistema ni servicios externos).
+// Membrete en cada página: logotipo de la FES Acatlán, licenciatura, organismo o IEVA y vigencia de la acreditación.
+import { LOGO_FES } from './membrete/logo';
+import { celdasRecomendacion, COLUMNAS_PLAN, DatosMembrete, fechaGeneracion, lineasMembrete, RecomendacionReporte } from './membrete/membrete';
 
-type RecomendacionPdf = {
-  numero: number;
-  categoria: string;
-  indicador: string;
-  descripcion: string;
-  acciones: string[];
-  metas: MetaPdf[];
-  areaResponsable: string | null;
-  fechaCumplimiento: string | null;
-};
-
-type PlanPdf = {
-  licenciatura: string;
-  organismo: string;
-  ciclo: string;
+type PlanPdf = DatosMembrete & {
   estado: string;
   actualizado: string;
-  recomendacionesDetalle: RecomendacionPdf[];
+  recomendacionesDetalle: RecomendacionReporte[];
 };
 
 const ANCHO = 842;
@@ -87,9 +72,12 @@ const caja = (x: number, y: number, ancho: number, alto: number, relleno?: strin
 const linea = (x1: number, y1: number, x2: number, y2: number) =>
   `q 0.78 0.82 0.86 RG 0.45 w ${x1} ${y1} m ${x2} ${y2} l S Q`;
 
-const fecha = (iso: string | null) => iso ? iso.slice(0, 10).split('-').reverse().join('/') : '—';
+// Logo de 150 pt de ancho en la esquina superior izquierda; el texto del membrete va a su derecha.
+const LOGO_ANCHO = 150;
+const LOGO_ALTO = (LOGO_ANCHO * LOGO_FES.alto) / LOGO_FES.ancho;
+const X_MEMBRETE = MARGEN + LOGO_ANCHO + 18;
 
-/** Crea un PDF sencillo y paginado sin depender de binarios del sistema o servicios externos. */
+/** Crea el PDF paginado del Plan de Mejora Continua con el membrete institucional de HU-06. */
 export const generarPdfPlan = (plan: PlanPdf): Buffer => {
   const paginas: string[][] = [];
   let comandos: string[] = [];
@@ -98,16 +86,23 @@ export const generarPdfPlan = (plan: PlanPdf): Buffer => {
   const abrirPagina = () => {
     comandos = [];
     paginas.push(comandos);
+    // HU-06: membrete con el logotipo de la FES Acatlán en cada página.
+    comandos.push(`q ${LOGO_ANCHO} 0 0 ${LOGO_ALTO.toFixed(2)} ${MARGEN} ${(ALTO - 22 - LOGO_ALTO).toFixed(2)} cm /Logo Do Q`);
     // HU-04: el reporte en tabla se titula "Plan de Mejora Continua" (Anexo 1).
-    comandos.push(texto(MARGEN, 558, 'Plan de Mejora Continua', 15, '0.02 0.20 0.38'));
-    comandos.push(texto(MARGEN, 540, `${plan.licenciatura} · Ciclo ${plan.ciclo} · ${plan.organismo}`, 9));
-    comandos.push(texto(MARGEN, 525, `Estado: ${plan.estado.replaceAll('_', ' ')} · Última actualización: ${plan.actualizado}`, 8));
-    comandos.push(texto(MARGEN, 511, `Generado: ${new Intl.DateTimeFormat('es-MX', { dateStyle: 'long', timeZone: 'America/Mexico_City' }).format(new Date())}`, 7, '0.36 0.40 0.44'));
-    const top = 496;
+    comandos.push(texto(X_MEMBRETE, 556, 'Plan de Mejora Continua', 15, '0.02 0.20 0.38'));
+    let yMembrete = 541;
+    for (const { etiqueta, valor } of lineasMembrete(plan)) {
+      const lineas = envolver(`${etiqueta}: ${valor}`, ANCHO - MARGEN - X_MEMBRETE, 8.5);
+      lineas.slice(0, 2).forEach((t) => {
+        comandos.push(texto(X_MEMBRETE, yMembrete, t, 8.5));
+        yMembrete -= 11;
+      });
+    }
+    comandos.push(texto(MARGEN, 503, `Estado: ${plan.estado.replaceAll('_', ' ')} · Última actualización: ${plan.actualizado} · Generado: ${fechaGeneracion()}`, 7, '0.36 0.40 0.44'));
+    const top = 494;
     comandos.push(caja(MARGEN, top - ALTO_CABECERA, ANCHOS.reduce((a, b) => a + b, 0), ALTO_CABECERA, '0.02 0.20 0.38'));
-    const encabezados = ['N.º', 'Categoría', 'Indicador', 'Recomendación', 'Acciones', 'Metas', 'Área responsable', 'Fecha límite'];
     let x = MARGEN;
-    encabezados.forEach((encabezado, i) => {
+    COLUMNAS_PLAN.forEach((encabezado, i) => {
       const lineas = envolver(encabezado, ANCHOS[i] - 8, 6.5);
       lineas.slice(0, 2).forEach((t, n) => comandos.push(texto(x + 4, top - 11 - n * 8, t, 6.5, '1 1 1')));
       if (i > 0) comandos.push(linea(x, top, x, top - ALTO_CABECERA));
@@ -117,16 +112,7 @@ export const generarPdfPlan = (plan: PlanPdf): Buffer => {
     y = top - ALTO_CABECERA;
   };
 
-  const filas = plan.recomendacionesDetalle.map((r) => [
-    String(r.numero),
-    r.categoria,
-    r.indicador,
-    r.descripcion,
-    r.acciones.length ? r.acciones.map((a, i) => `${i + 1}. ${a}`).join('\n') : '—',
-    r.metas.length ? r.metas.map((m, i) => `${i + 1}. ${m.descripcion}${m.fechaCompromiso ? ` · ${fecha(m.fechaCompromiso)}` : ''}${m.porcentajeEsperado === null ? '' : ` · ${m.porcentajeEsperado}%`}`).join('\n') : '—',
-    r.areaResponsable ?? '—',
-    fecha(r.fechaCumplimiento),
-  ]);
+  const filas = plan.recomendacionesDetalle.map(celdasRecomendacion);
 
   abrirPagina();
   if (filas.length === 0) {
@@ -163,30 +149,43 @@ export const generarPdfPlan = (plan: PlanPdf): Buffer => {
     }
   }
 
-  paginas.forEach((contenido, i) => contenido.push(texto(MARGEN, 20, `Sistema de Seguimiento de Mejora · Página ${i + 1} de ${paginas.length}`, 7, '0.42 0.46 0.50')));
+  paginas.forEach((contenido, i) => contenido.push(texto(MARGEN, 20, `Sistema de Seguimiento a la Mejora Continua · FES Acatlán · Página ${i + 1} de ${paginas.length}`, 7, '0.42 0.46 0.50')));
 
-  const objetos: string[] = [];
-  objetos[1] = '<< /Type /Catalog /Pages 2 0 R >>';
-  const idsPagina = paginas.map((_, i) => 4 + i * 2);
-  objetos[2] = `<< /Type /Pages /Kids [${idsPagina.map((id) => `${id} 0 R`).join(' ')}] /Count ${paginas.length} >>`;
-  objetos[3] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>';
+  // Objetos del PDF: texto (diccionarios y contenido de páginas) o binario (el JPEG del logo).
+  const objetos: Buffer[] = [];
+  const objeto = (id: number, cuerpo: string) => (objetos[id] = Buffer.from(cuerpo, 'latin1'));
+  objeto(1, '<< /Type /Catalog /Pages 2 0 R >>');
+  const idsPagina = paginas.map((_, i) => 5 + i * 2);
+  objeto(2, `<< /Type /Pages /Kids [${idsPagina.map((id) => `${id} 0 R`).join(' ')}] /Count ${paginas.length} >>`);
+  objeto(3, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
+  objetos[4] = Buffer.concat([
+    Buffer.from(
+      `<< /Type /XObject /Subtype /Image /Width ${LOGO_FES.ancho} /Height ${LOGO_FES.alto} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${LOGO_FES.jpeg.length} >>\nstream\n`,
+      'latin1',
+    ),
+    LOGO_FES.jpeg,
+    Buffer.from('\nendstream', 'latin1'),
+  ]);
   paginas.forEach((contenido, i) => {
-    const idPagina = idsPagina[i];
+    const idPagina = idsPagina[i]!;
     const idContenido = idPagina + 1;
     const stream = contenido.join('\n');
-    objetos[idPagina] = `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${ANCHO} ${ALTO}] /Resources << /Font << /F1 3 0 R >> >> /Contents ${idContenido} 0 R >>`;
-    objetos[idContenido] = `<< /Length ${Buffer.byteLength(stream, 'ascii')} >>\nstream\n${stream}\nendstream`;
+    objeto(idPagina, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${ANCHO} ${ALTO}] /Resources << /Font << /F1 3 0 R >> /XObject << /Logo 4 0 R >> >> /Contents ${idContenido} 0 R >>`);
+    objeto(idContenido, `<< /Length ${Buffer.byteLength(stream, 'latin1')} >>\nstream\n${stream}\nendstream`);
   });
 
-  let documento = '%PDF-1.4\n';
+  const partes: Buffer[] = [Buffer.from('%PDF-1.4\n%\xE2\xE3\xCF\xD3\n', 'latin1')];
+  let longitud = partes[0]!.length;
   const offsets = [0];
   for (let id = 1; id < objetos.length; id++) {
-    offsets[id] = Buffer.byteLength(documento, 'ascii');
-    documento += `${id} 0 obj\n${objetos[id]}\nendobj\n`;
+    offsets[id] = longitud;
+    const parte = Buffer.concat([Buffer.from(`${id} 0 obj\n`, 'latin1'), objetos[id]!, Buffer.from('\nendobj\n', 'latin1')]);
+    partes.push(parte);
+    longitud += parte.length;
   }
-  const inicioXref = Buffer.byteLength(documento, 'ascii');
-  documento += `xref\n0 ${objetos.length}\n0000000000 65535 f \n`;
-  for (let id = 1; id < objetos.length; id++) documento += `${String(offsets[id]).padStart(10, '0')} 00000 n \n`;
-  documento += `trailer\n<< /Size ${objetos.length} /Root 1 0 R >>\nstartxref\n${inicioXref}\n%%EOF`;
-  return Buffer.from(documento, 'ascii');
+  let cola = `xref\n0 ${objetos.length}\n0000000000 65535 f \n`;
+  for (let id = 1; id < objetos.length; id++) cola += `${String(offsets[id]).padStart(10, '0')} 00000 n \n`;
+  cola += `trailer\n<< /Size ${objetos.length} /Root 1 0 R >>\nstartxref\n${longitud}\n%%EOF`;
+  partes.push(Buffer.from(cola, 'latin1'));
+  return Buffer.concat(partes);
 };
