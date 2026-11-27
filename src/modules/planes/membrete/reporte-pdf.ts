@@ -3,7 +3,7 @@
 // Cada página lleva el logotipo de la FES Acatlán, el título, las líneas del membrete y la fila de títulos de la tabla.
 // Las celdas pueden traer enlaces: se dibujan en azul subrayado y llevan una anotación /Link clickeable (HU-09).
 import { LOGO_FES } from './logo';
-import { DatosMembrete, fechaGeneracion, lineasMembrete } from './membrete';
+import { DatosMembrete, fechaGeneracion, lineasMembrete, MembreteLibre } from './membrete';
 
 export type EnlaceReporte = { texto: string; url: string };
 /** Texto (los saltos de línea separan renglones) y, opcionalmente, enlaces debajo del texto. */
@@ -11,7 +11,7 @@ export type CeldaReporte = string | { texto?: string; enlaces?: EnlaceReporte[] 
 
 export type ReporteTabla = {
   titulo: string;
-  membrete: DatosMembrete;
+  membrete: DatosMembrete | MembreteLibre;
   /** Línea gris bajo el membrete (estado, fechas). Se le agrega "Generado: …". */
   detalle: string;
   /** Aviso destacado en rojo bajo el detalle (p. ej., versión preliminar). */

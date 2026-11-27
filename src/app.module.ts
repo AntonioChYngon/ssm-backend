@@ -15,6 +15,7 @@ import { NotificacionesModule } from './modules/notificaciones/notificaciones.mo
 import { PlanesModule } from './modules/planes/planes.module';
 import { RecordatoriosModule } from './modules/recordatorios/recordatorios.module';
 import { ReportesModule } from './modules/reportes/reportes.module';
+import { TransversalesModule } from './modules/transversales/transversales.module';
 import { UsuariosModule } from './modules/usuarios/usuarios.module';
 
 // Módulos en migración al esquema del equipo: ver src/modules/_por-migrar/LEEME.md
@@ -69,6 +70,7 @@ import { UsuariosModule } from './modules/usuarios/usuarios.module';
     PlanesModule, // HU-04
     RecordatoriosModule, // HU-10
     ReportesModule, // HU-15
+    TransversalesModule, // HU-17
     UsuariosModule, // HU-02
   ],
   providers: [
