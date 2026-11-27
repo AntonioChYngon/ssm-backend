@@ -140,7 +140,7 @@ Plan completo y lista de decisiones en el proyecto del equipo (`bloque-informe-p
 ## D11 · Varias licenciaturas para el Administrador (HU-13) · 25/11/2026
 - `licenciaturaIds=1,2,3` en `GET /planes`, `/informes`, `/ciclos` y `/auditoria`; sin el parámetro, todas.
 - Captura y Auxiliar siguen limitados a su licenciatura: el filtro solo reduce, nunca amplía (pruebas en `test/multicarrera.e2e-spec.ts`).
-- El dashboard, los reportes (HU-14, HU-15) y el histórico (HU-16) todavía usan datos de ejemplo; usarán el mismo parámetro.
+- Los reportes HU-14 y HU-15 ya aceptan este parámetro y consultan la base real. El dashboard y el histórico (HU-16) todavía usan datos de ejemplo.
 
 ## D12 · Exportación del Informe de Seguimiento (HU-09) · 26/11/2026
 - `GET /informes/:id/pdf` y `GET /informes/:id/docx`, con el mismo membrete que el plan (HU-06). Los generadores de PDF y Word
@@ -160,7 +160,7 @@ Plan completo y lista de decisiones en el proyecto del equipo (`bloque-informe-p
 - Solo revisa el **último plan APROBADO** de cada licenciatura con **ciclo activo** (HU-18). Ciclo terminado: no hay avisos.
 - **% actual = último informe capturado** (el informe más reciente que registró esa recomendación, en cualquier estado).
   Es el dato con el que trabaja la coordinación; esperar a la validación del Administrador daría avisos atrasados.
-  Si la HU-15 decide otra cosa (último aprobado), se cambia en `ultimosAvances()` de `src/common/avances.ts`, que comparten HU-10 y HU-17 (y deben usar HU-14 y HU-15).
+  Esta decisión ya se aplica también en HU-14 y HU-15 mediante `ultimosAvances()` de `src/common/avances.ts`; HU-14 añade una fecha de corte opcional.
 - **Fecha límite** = fecha de cumplimiento de la recomendación. Se avisa `RECORDATORIOS_DIAS_ANTES` días antes (7) si va < 100 %.
 - **Rezago** = venció la fecha de un hito (meta con fecha y %, HU-12) y el % actual es menor; si vencieron varios, cuenta el de
   mayor %. Se avisa en la primera revisión después de la fecha.

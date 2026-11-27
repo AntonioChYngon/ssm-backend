@@ -35,11 +35,12 @@ git grep "TODO(HU-02)"     # o HU-04, HU-15
 - [ ] Frontend: tabla "Plan de Mejora Continua" (Anexo 1) al terminar la captura.
 - [ ] Pruebas: completar los `it.todo`.
 
-**HU-15 · Antonio**
-- [ ] `GET /reportes/atencion?licenciaturaId=`: conteo por licenciatura con `contarPorEstatus()`.
-- [ ] Confirmar con el equipo qué avance cuenta: el del último informe aprobado (recomendado) o el último capturado.
-- [ ] Frontend: conectar `/admin/reportes/atencion` a `obtenerResumenAtencion()` y el filtro por licenciatura.
-- [ ] Pruebas: con los datos de desarrollo, Derecho debe dar 1 / 1 / 2 y Economía 2 / 1 / 0.
+**HU-14 y HU-15 · Reportes**
+- [x] `GET /reportes/incumplimiento`: fecha de corte y porcentaje obligatorios, con filtro `licenciaturaIds`.
+- [x] `GET /reportes/atencion`: conteo por licenciatura con `contarPorEstatus()` y filtro `licenciaturaIds`.
+- [x] El avance que cuenta es el último capturado (D3); HU-14 limita los informes por su fecha de corte.
+- [x] Frontend conectado en `/admin/reportes/incumplimiento` y `/admin/reportes/atencion`.
+- [x] Pruebas unitarias, de compilación y consultas contra los datos de desarrollo.
 
 ## 2. Preparar tu computadora (una sola vez)
 

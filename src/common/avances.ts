@@ -3,8 +3,15 @@
 // Si se decide usar solo informes aprobados, se cambia aquí y todas las pantallas siguen dando el mismo número.
 import type { DataSource, EntityManager } from 'typeorm';
 
-/** recomendacionId → % del último informe capturado. Las que nunca se capturaron no vienen (cuentan como 0 %). */
-export const ultimosAvances = async (ds: DataSource | EntityManager, recomendacionIds: readonly string[]) => {
+/**
+ * recomendacionId → % del último informe capturado. Las que nunca se capturaron no vienen (cuentan como 0 %).
+ * Si se proporciona fechaCorte, ignora los informes posteriores a ese día (HU-14).
+ */
+export const ultimosAvances = async (
+  ds: DataSource | EntityManager,
+  recomendacionIds: readonly string[],
+  fechaCorte?: string,
+) => {
   const avances = new Map<string, number>();
   if (!recomendacionIds.length) return avances;
   const filas: { recomendacion: string | number; porcentaje: string | number }[] = await ds.query(
@@ -12,9 +19,9 @@ export const ultimosAvances = async (ds: DataSource | EntityManager, recomendaci
      FROM avance_recomendacion ar
      JOIN version_informe vi ON vi.version_informe_id = ar.version_informe_id
      JOIN informe i ON i.informe_id = vi.informe_id
-     WHERE ar.recomendacion_id IN (?)
-     ORDER BY i.fecha_fin DESC, vi.numero_version DESC, ar.avance_id DESC`,
-    [recomendacionIds],
+     WHERE ar.recomendacion_id IN (?)${fechaCorte ? ' AND i.fecha_corte <= ?' : ''}
+     ORDER BY i.fecha_corte DESC, i.fecha_fin DESC, vi.numero_version DESC, ar.avance_id DESC`,
+    fechaCorte ? [recomendacionIds, fechaCorte] : [recomendacionIds],
   );
   for (const f of filas) if (!avances.has(String(f.recomendacion))) avances.set(String(f.recomendacion), Number(f.porcentaje));
   return avances;

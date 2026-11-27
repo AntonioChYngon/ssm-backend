@@ -18,5 +18,7 @@ describe('HU-15 · contarPorEstatus', () => {
     expect(contarPorEstatus([])).toEqual({ atendidas: 0, enProceso: 0, sinAtender: 0 });
   });
 
-  it.todo('el filtro por licenciatura solo cuenta recomendaciones de esa licenciatura');
+  it('considera un avance decimal mayor que cero como en proceso', () => {
+    expect(contarPorEstatus([0.5])).toEqual({ atendidas: 0, enProceso: 1, sinAtender: 0 });
+  });
 });
