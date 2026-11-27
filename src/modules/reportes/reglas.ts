@@ -13,7 +13,7 @@ export type ConteoAtencion = { atendidas: number; enProceso: number; sinAtender:
 
 /**
  * Cuenta recomendaciones por estatus. Una recomendación sin ningún avance registrado (null) cuenta como no atendida.
- * TODO(HU-15): ¿qué pasa con avances decimales entre 0 y 1 (p. ej. 0.5%)? Hoy cuentan como "en proceso".
+ * El % siempre es entero de 0 a 100 (D9), así que no hay casos entre 0 y 1.
  */
 export const contarPorEstatus = (porcentajes: (number | null)[]): ConteoAtencion =>
   porcentajes.reduce<ConteoAtencion>(

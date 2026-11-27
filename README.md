@@ -74,10 +74,11 @@ Prefijo `/api`. Todas piden `Authorization: Bearer <token>`, salvo las públicas
 | `GET /historico/ciclos?licenciaturaIds&fecha` (ciclos vigentes e históricos para elegir por vigencia) | Administrador, Captura, Auxiliar (su licenciatura) | HU-16 |
 | `GET /historico/ciclos/:id` (plan, informes y resumen de atención del ciclo) | Administrador, Captura, Auxiliar (su licenciatura) | HU-16 |
 | `cicloId` en `/reportes/atencion`, `/reportes/incumplimiento` y `/transversales/*` (consulta sobre un ciclo histórico) | Administrador | HU-16 |
+| `GET /dashboard/admin?licenciaturaIds` · `GET /dashboard/licenciatura` (indicadores con datos reales del ciclo vigente) | Administrador · Captura, Auxiliar | Dashboards |
 | `GET /notificaciones` · `PATCH /notificaciones/:id/leida` | cualquier sesión | HU-10 |
 
 El Informe de Seguimiento (HU-07, HU-08, HU-11) vive en `src/modules/informes/` (decisiones en `docs/decisiones.md`, D9); la auditoría por campo y la bitácora (HU-03) en `src/modules/auditoria/` (D10); el filtro de varias licenciaturas (HU-13) en `src/common/licenciaturas.ts` (D11). En una base existente aplica `db/migraciones/2026-11-27_informe_evidencias.sql`.
-El resto de los módulos (reportes) se está migrando al esquema del equipo; ver `src/modules/_por-migrar/LEEME.md`.
+Recordatorios (HU-10) en `src/modules/recordatorios/`, reportes (HU-14, HU-15) en `src/modules/reportes/`, transversales (HU-17) en `src/modules/transversales/`, histórico (HU-16) en `src/modules/historico/` y dashboards en `src/modules/dashboard/`.
 
 ## Reglas del Plan de Mejora
 
@@ -101,6 +102,6 @@ El resto de los módulos (reportes) se está migrando al esquema del equipo; ver
 
 ## Pendientes
 
-- Envío de correos (enlace de recuperación y avisos). Se necesita el SMTP institucional.
-- Migrar los módulos de `_por-migrar` al esquema del equipo.
+- Correos reales: hoy salen a Mailpit; se necesita el SMTP institucional.
+- Proveedor de carpetas en Google Drive (cuenta de servicio de la FES); hoy las evidencias se guardan en `CARPETAS_DIR`.
 - Decisiones abiertas del equipo: aceptar o no `@unam.mx`, cómo se marca una observación como atendida y preferencia de canal de notificación.
