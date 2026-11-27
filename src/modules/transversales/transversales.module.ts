@@ -73,6 +73,8 @@ export class FiltrosTransversalesDto {
   @IsOptional() @IsIn(['true', 'false']) soloTransversales?: 'true' | 'false';
   @IsOptional() @Matches(ID) grupoId?: string;
   @IsOptional() @IsString() @Length(0, 120) q?: string;
+  /** HU-16: solo ese ciclo (vigente o histórico); ignora `ciclos`. */
+  @IsOptional() @Matches(ID) cicloId?: string;
 }
 
 export class GrupoDto {
@@ -122,12 +124,16 @@ export class TransversalesService {
   /** Consulta de recomendaciones con sus filtros (licenciaturas, ciclos, sólo transversales, grupo, texto). */
   async consultar(filtros: FiltrosTransversalesDto, hoy = hoyEnMexico()): Promise<RecomendacionConsulta[]> {
     const licenciaturaIds = leerLicenciaturaIds(filtros.licenciaturaIds);
-    const alcance = filtros.ciclos ?? 'vigentes';
+    const alcance = filtros.cicloId ? 'todos' : (filtros.ciclos ?? 'vigentes');
     const condiciones = ['vp.numero_version = (SELECT MAX(x.numero_version) FROM version_plan x WHERE x.ciclo_id = vp.ciclo_id)'];
     const valores: unknown[] = [];
     if (licenciaturaIds) {
       condiciones.push('c.licenciatura_id IN (?)');
       valores.push(licenciaturaIds);
+    }
+    if (filtros.cicloId) {
+      condiciones.push('vp.ciclo_id = ?');
+      valores.push(filtros.cicloId);
     }
     if (filtros.soloTransversales === 'true') condiciones.push('r.transversal = TRUE');
     if (filtros.grupoId) {
@@ -268,7 +274,16 @@ export class TransversalesService {
       const filas: { nombre: string }[] = await this.ds.query('SELECT nombre FROM licenciatura WHERE licenciatura_id IN (?) ORDER BY nombre', [ids]);
       licenciaturas = filas.map((f) => f.nombre).join(', ') || 'Ninguna';
     }
-    const datos = reporteTransversales(grupos, { alcance: filtros.ciclos ?? 'vigentes', licenciaturas });
+    let ciclo: string | undefined;
+    if (filtros.cicloId) {
+      const [fila] = await this.ds.query(
+        'SELECT c.nombre, l.nombre AS licenciatura FROM ciclo_acreditacion c JOIN licenciatura l ON l.licenciatura_id = c.licenciatura_id WHERE c.ciclo_id = ?',
+        [filtros.cicloId],
+      );
+      if (!fila) throw new NotFoundException('Ciclo de acreditación no encontrado.');
+      ciclo = `Ciclo ${fila.nombre} de ${fila.licenciatura}`;
+    }
+    const datos = reporteTransversales(grupos, { alcance: filtros.ciclos ?? 'vigentes', licenciaturas, ciclo });
     return formato === 'pdf' ? generarPdfReporte(datos) : generarDocxReporte(datos);
   }
 

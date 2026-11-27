@@ -191,6 +191,19 @@ Plan completo y lista de decisiones en el proyecto del equipo (`bloque-informe-p
 - **Módulo de consultas (HU-14/15, Christian):** el filtro "Mostrar sólo recomendaciones transversales" se agrega ahí con el
   mismo parámetro `soloTransversales=true` (condición `r.transversal = TRUE`) y el mismo `ultimosAvances()`.
 
+## D16 · Archivo histórico (HU-16) · 27/11/2026
+- **Nada se borra:** planes, informes y evidencias de ciclos concluidos se quedan en la base; el ciclo solo cambia a HISTORICO.
+- **Filtro obligatorio por vigencia:** la consulta histórica siempre es de UN ciclo, elegido por su vigencia
+  ("28 de noviembre de 2019 al 28 de noviembre de 2024 · CONAED"). `GET /historico/ciclos?fecha=` encuentra la constancia
+  por una fecha dentro de su vigencia o por su fecha de emisión.
+- **Todas las consultas sobre el ciclo elegido:** `GET /historico/ciclos/:id` (plan, informes, resumen HU-15) y el parámetro
+  `cicloId` en `/reportes/atencion`, `/reportes/incumplimiento` (HU-14) y `/transversales/*` (HU-17). Sin `cicloId`, los
+  reportes siguen igual (ciclo vigente). El detalle y la exportación de planes e informes ya funcionaban con cualquier ciclo.
+- **Evidencias históricas:** se abren con el mismo enlace del reporte (`/evidencias/:id`) mientras exista el archivo o la URL.
+  Con Drive, la carpeta del ciclo se conserva (HU-18).
+- **Coordinación:** consulta los ciclos de su licenciatura en solo lectura; en un ciclo cerrado no puede capturar (HU-18).
+- **Datos de prueba:** `db/datos_historicos.sql` (Derecho 2019-2024), cargado por el seed después de los datos de desarrollo.
+
 ## Bases de datos existentes
 Cada cambio de esquema tiene su script en `db/migraciones/`. En desarrollo es más fácil recrear la base:
 `podman compose down`, `podman volume rm ssm-backend_ssm-db`, `podman compose up -d db correo` y `npm run seed`.

@@ -69,7 +69,7 @@ export const COLUMNAS_TRANSVERSALES = [
 /** Reporte consolidado (PDF y Word): cada recomendación transversal con sus carreras y su avance consolidado. */
 export const reporteTransversales = (
   grupos: readonly GrupoConsolidado[],
-  filtros: { alcance: AlcanceCiclos; licenciaturas: string },
+  filtros: { alcance: AlcanceCiclos; licenciaturas: string; /** HU-16: ciclo concreto consultado. */ ciclo?: string },
 ): ReporteTabla & { tituloDocumento: string } => {
   const conMiembros = grupos.filter((g) => g.recomendaciones.length);
   const licenciaturas = new Set(conMiembros.flatMap((g) => g.licenciaturas));
@@ -79,7 +79,7 @@ export const reporteTransversales = (
     membrete: {
       lineas: [
         { etiqueta: 'Unidad responsable', valor: 'Unidad de Planeación · FES Acatlán' },
-        { etiqueta: 'Ciclos de acreditación', valor: ETIQUETA_ALCANCE[filtros.alcance] },
+        { etiqueta: 'Ciclos de acreditación', valor: filtros.ciclo ?? ETIQUETA_ALCANCE[filtros.alcance] },
         { etiqueta: 'Licenciaturas consultadas', valor: filtros.licenciaturas },
       ],
     },

@@ -71,6 +71,9 @@ Prefijo `/api`. Todas piden `Authorization: Bearer <token>`, salvo las públicas
 | `GET /transversales/grupos` (vista agrupada con avance consolidado) · `POST /transversales/grupos` · `PATCH`/`DELETE /transversales/grupos/:id` | Administrador | HU-17 |
 | `POST /transversales/marcar` · `POST /transversales/desmarcar` (etiquetado manual de una o varias recomendaciones) | Administrador | HU-17 |
 | `GET /transversales/reporte/pdf` · `GET /transversales/reporte/docx` (reporte consolidado) | Administrador | HU-17 |
+| `GET /historico/ciclos?licenciaturaIds&fecha` (ciclos vigentes e históricos para elegir por vigencia) | Administrador, Captura, Auxiliar (su licenciatura) | HU-16 |
+| `GET /historico/ciclos/:id` (plan, informes y resumen de atención del ciclo) | Administrador, Captura, Auxiliar (su licenciatura) | HU-16 |
+| `cicloId` en `/reportes/atencion`, `/reportes/incumplimiento` y `/transversales/*` (consulta sobre un ciclo histórico) | Administrador | HU-16 |
 | `GET /notificaciones` · `PATCH /notificaciones/:id/leida` | cualquier sesión | HU-10 |
 
 El Informe de Seguimiento (HU-07, HU-08, HU-11) vive en `src/modules/informes/` (decisiones en `docs/decisiones.md`, D9); la auditoría por campo y la bitácora (HU-03) en `src/modules/auditoria/` (D10); el filtro de varias licenciaturas (HU-13) en `src/common/licenciaturas.ts` (D11). En una base existente aplica `db/migraciones/2026-11-27_informe_evidencias.sql`.

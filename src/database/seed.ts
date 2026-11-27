@@ -5,6 +5,7 @@
 //    (src/database/cuentas-coordinaciones.ts) y la contraseña SEED_CUENTAS_PASSWORD, marcada como temporal:
 //    al primer inicio de sesión el sistema obliga a cambiarla.
 // 4. Si SEED_DATOS_DESARROLLO=true y aún no hay planes, carga db/datos_desarrollo.sql.
+//    Después carga db/datos_historicos.sql (Derecho 2019-2024, HU-16) si Derecho aún no tiene un ciclo histórico.
 //    Además crea (si faltan) los PDF de ejemplo de las evidencias de archivo en CARPETAS_DIR.
 // 5. Si SEED_CICLOS_REALES=true, carga db/ciclos_vigentes.sql (vigencias reales de CICLOS VIGENTES.xlsx) solo para
 //    las licenciaturas que todavía no tienen ningún ciclo. Va después de los datos de desarrollo para no chocar con ellos.
@@ -135,6 +136,14 @@ const main = async () => {
     } else {
       await ds.transaction((tx) => tx.query(leerSql('datos_desarrollo.sql')));
       console.log('✔ Datos de desarrollo cargados (planes, recomendaciones, informes y evidencias de prueba).');
+    }
+    // HU-16: ciclo histórico de Derecho (2019-2024). Va después de los datos de desarrollo y llega también a bases viejas.
+    const [{ historicos }] = await ds.query(
+      "SELECT COUNT(*) AS historicos FROM ciclo_acreditacion c JOIN licenciatura l ON l.licenciatura_id = c.licenciatura_id WHERE l.clave = 'DER' AND c.estado <> 'VIGENTE'",
+    );
+    if (Number(historicos) === 0) {
+      await ds.transaction((tx) => tx.query(leerSql('datos_historicos.sql')));
+      console.log('✔ Ciclo histórico de prueba cargado (Derecho 2019-2024, con plan, informes y evidencias).');
     }
     const carpetas = process.env.CARPETAS_DIR ?? 'storage';
     const archivos = await asegurarArchivosDeEjemplo(ds, carpetas);
