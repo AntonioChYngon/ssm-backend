@@ -425,7 +425,11 @@ describe('Acceso (HU-01) y endpoints base de HU-02, HU-04 y HU-15', () => {
       await api().get('/api/reportes/atencion').set('Authorization', `Bearer ${captura}`).expect(403);
     });
 
-    // Con db/datos_desarrollo.sql → DER: 1 atendida, 1 en proceso, 2 no atendidas · ECO: 2 atendidas, 1 en proceso.
-    it.todo('cuenta las recomendaciones de Derecho y Economía según los datos de desarrollo');
+    // Último informe capturado de Derecho (2027-1, que ninguna prueba modifica): 100 · 60 · 20 · 0.
+    it('cuenta las recomendaciones de Derecho según los datos de desarrollo', async () => {
+      const [{ id }] = await dataSource.query("SELECT licenciatura_id AS id FROM licenciatura WHERE clave = 'DER'");
+      const { body } = await api().get(`/api/reportes/atencion?licenciaturaIds=${id}`).set('Authorization', `Bearer ${admin}`).expect(200);
+      expect(body).toEqual([expect.objectContaining({ licenciatura: 'Derecho', atendidas: 1, enProceso: 2, sinAtender: 1 })]);
+    });
   });
 });
