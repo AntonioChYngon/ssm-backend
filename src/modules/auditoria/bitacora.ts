@@ -48,7 +48,7 @@ export type PaginaBitacora = { total: number; pagina: number; limite: number; ev
 export const CONDICION_AREA: Record<AreaBitacora, string> = {
   SESIONES: "(a.entidad = 'usuario' AND a.campo IN ('sesion', 'hash_contrasena'))",
   CUENTAS: "(a.entidad = 'usuario' AND a.campo NOT IN ('sesion', 'hash_contrasena'))",
-  PLAN: "a.entidad IN ('recomendacion', 'version_plan')",
+  PLAN: "a.entidad IN ('recomendacion', 'version_plan', 'grupo_transversal')",
   INFORME: "a.entidad IN ('avance_recomendacion', 'version_informe')",
   CICLOS: "a.entidad = 'ciclo_acreditacion'",
 };

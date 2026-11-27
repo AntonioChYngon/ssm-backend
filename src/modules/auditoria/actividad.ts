@@ -40,6 +40,8 @@ const describir = ({ entidad, campo, valorNuevo }: Registro): [TipoActividad, st
     if (campo.startsWith('actualizada')) return ['PLAN', 'Editó una recomendación del plan'];
     if (campo === 'eliminada') return ['PLAN', 'Eliminó una recomendación del plan'];
     if (campo === 'metas configuradas' || campo === 'metas') return ['PLAN', 'Configuró las metas de una recomendación'];
+    // HU-17: etiquetado de recomendaciones transversales.
+    if (campo === 'transversal') return ['PLAN', valorNuevo ? 'Marcó una recomendación como transversal' : 'Quitó una recomendación de las transversales'];
     // HU-03: edición registrada campo por campo (categoría, indicador, recomendación, acciones, área, fecha…).
     return ['PLAN', 'Editó una recomendación del plan'];
   }
@@ -59,6 +61,11 @@ const describir = ({ entidad, campo, valorNuevo }: Registro): [TipoActividad, st
     if (valorNuevo === 'EN_REVISION') return ['PLAN', 'Envió el plan de mejora a validación'];
     if (valorNuevo === 'APROBADO') return ['PLAN', 'Validó un plan de mejora'];
     if (valorNuevo === 'DEVUELTO') return ['PLAN', 'Devolvió un plan de mejora con observaciones'];
+  }
+  if (entidad === 'grupo_transversal') {
+    if (campo === 'alta') return ['PLAN', 'Creó un grupo de recomendaciones transversales'];
+    if (campo === 'eliminado') return ['PLAN', 'Eliminó un grupo de recomendaciones transversales'];
+    return ['PLAN', 'Editó un grupo de recomendaciones transversales'];
   }
   if (entidad === 'ciclo_acreditacion') {
     if (campo === 'alta') return ['CICLOS', 'Inició un ciclo de acreditación'];

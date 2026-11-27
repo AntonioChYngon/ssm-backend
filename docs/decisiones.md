@@ -160,7 +160,7 @@ Plan completo y lista de decisiones en el proyecto del equipo (`bloque-informe-p
 - Solo revisa el **último plan APROBADO** de cada licenciatura con **ciclo activo** (HU-18). Ciclo terminado: no hay avisos.
 - **% actual = último informe capturado** (el informe más reciente que registró esa recomendación, en cualquier estado).
   Es el dato con el que trabaja la coordinación; esperar a la validación del Administrador daría avisos atrasados.
-  Si la HU-15 decide otra cosa (último aprobado), se cambia en `ultimosAvances()` de `recordatorios.module.ts`.
+  Si la HU-15 decide otra cosa (último aprobado), se cambia en `ultimosAvances()` de `src/common/avances.ts`, que comparten HU-10 y HU-17 (y deben usar HU-14 y HU-15).
 - **Fecha límite** = fecha de cumplimiento de la recomendación. Se avisa `RECORDATORIOS_DIAS_ANTES` días antes (7) si va < 100 %.
 - **Rezago** = venció la fecha de un hito (meta con fecha y %, HU-12) y el % actual es menor; si vencieron varios, cuenta el de
   mayor %. Se avisa en la primera revisión después de la fecha.
@@ -177,6 +177,19 @@ Plan completo y lista de decisiones en el proyecto del equipo (`bloque-informe-p
 - Actuaría viene sin día ("Julio de 2025 a agosto de 2030"): se registró del 01/07/2025 al 31/08/2030. Excede los 5 años que
   acepta la pantalla de ciclos; confirmar las fechas de la constancia.
 - Con datos de desarrollo, ACT, DER, ECO y ARQ conservan sus ciclos de prueba (las pruebas dependen de ellos).
+
+## D15 · Recomendaciones transversales (HU-17) · 26/11/2026
+- **Grupo transversal = la "recomendación similar"** que comparten varias carreras (p. ej. "Renovación de equipo de cómputo").
+  Usa las tablas que ya tenía el esquema: `grupo_transversal`, `recomendacion_transversal` y `recomendacion.transversal`.
+  Una recomendación está en un solo grupo; marcarla en otro la mueve. Borrar un grupo no borra recomendaciones.
+- **Etiquetado manual** con selector múltiple en `/admin/transversales`; cada marca o quitada queda en la bitácora (HU-03).
+- **Consulta**: el último plan de cada ciclo, con `ciclos=vigentes|historicos|todos` (por defecto vigentes), `licenciaturaIds`
+  (D11), `soloTransversales=true`, `grupoId` y texto. Funciona igual sobre ciclos históricos (también se pueden etiquetar:
+  es una clasificación de la Unidad de Planeación, no cambia los datos del ciclo).
+- **Avance consolidado** = promedio entero del % de las recomendaciones del grupo (último informe capturado, D13); una
+  recomendación sin captura cuenta como 0 %.
+- **Módulo de consultas (HU-14/15, Christian):** el filtro "Mostrar sólo recomendaciones transversales" se agrega ahí con el
+  mismo parámetro `soloTransversales=true` (condición `r.transversal = TRUE`) y el mismo `ultimosAvances()`.
 
 ## Bases de datos existentes
 Cada cambio de esquema tiene su script en `db/migraciones/`. En desarrollo es más fácil recrear la base:

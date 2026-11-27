@@ -15,12 +15,19 @@ export const fechaCorta = (iso: string | null | undefined) => (iso ? iso.slice(0
 
 export type DatosMembrete = { licenciatura: string; organismo: string; ciclo: string; vigenciaInicio: string; vigenciaFin: string };
 
+export type LineaMembrete = { etiqueta: string; valor: string };
+/** Membrete de un reporte que abarca varias licenciaturas (HU-17): las líneas se escriben tal cual. */
+export type MembreteLibre = { lineas: LineaMembrete[] };
+
 /** Las tres líneas que pide HU-06: licenciatura, organismo o IEVA y fecha de acreditación / vigencia. */
-export const lineasMembrete = (d: DatosMembrete) => [
-  { etiqueta: 'Licenciatura', valor: d.licenciatura },
-  { etiqueta: 'Organismo acreditador o IEVA', valor: d.organismo },
-  { etiqueta: 'Vigencia de la acreditación', valor: `${fechaLarga(d.vigenciaInicio)} al ${fechaLarga(d.vigenciaFin)} (ciclo ${d.ciclo})` },
-];
+export const lineasMembrete = (d: DatosMembrete | MembreteLibre): LineaMembrete[] =>
+  'lineas' in d
+    ? d.lineas
+    : [
+        { etiqueta: 'Licenciatura', valor: d.licenciatura },
+        { etiqueta: 'Organismo acreditador o IEVA', valor: d.organismo },
+        { etiqueta: 'Vigencia de la acreditación', valor: `${fechaLarga(d.vigenciaInicio)} al ${fechaLarga(d.vigenciaFin)} (ciclo ${d.ciclo})` },
+      ];
 
 /** Encabezados de la tabla del Anexo 1, iguales en PDF y Word. */
 export const COLUMNAS_PLAN = ['N.º', 'Categoría', 'Indicador', 'Recomendación', 'Acciones', 'Metas', 'Área responsable', 'Fecha de cumplimiento'];

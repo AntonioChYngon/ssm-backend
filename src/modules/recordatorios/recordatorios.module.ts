@@ -10,6 +10,7 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { InjectDataSource, InjectRepository, TypeOrmModule } from '@nestjs/typeorm';
 import { Column, DataSource, Entity, In, PrimaryColumn, Repository } from 'typeorm';
 import { Roles, UsuarioActual, UsuarioToken } from '../../common/auth';
+import { ultimosAvances } from '../../common/avances';
 import { EstadoVersion, Rol } from '../../common/enums';
 import { CicloAcreditacion, VersionPlan } from '../../database/plan.entities';
 import { cicloActivo, hoyEnMexico } from '../planes/reglas';
@@ -152,7 +153,7 @@ export class RecordatoriosService implements OnApplicationBootstrap, OnModuleDes
       const recomendaciones = plan.indicadores
         .sort((a, b) => a.orden - b.orden)
         .flatMap((i) => i.recomendaciones.sort((a, b) => a.orden - b.orden).map((r) => ({ indicador: i, r })));
-      const avances = await this.ultimosAvances(recomendaciones.map(({ r }) => r.id));
+      const avances = await ultimosAvances(this.ds, recomendaciones.map(({ r }) => r.id));
       resultado.push({
         ciclo,
         recomendaciones: recomendaciones.map(({ indicador, r }) => ({
@@ -168,23 +169,6 @@ export class RecordatoriosService implements OnApplicationBootstrap, OnModuleDes
       });
     }
     return resultado;
-  }
-
-  /** % de cada recomendación en el informe más reciente que la registró (su última versión), sin importar su estado. */
-  private async ultimosAvances(recomendacionIds: string[]) {
-    const avances = new Map<string, number>();
-    if (!recomendacionIds.length) return avances;
-    const filas: { recomendacion: string; porcentaje: string }[] = await this.ds.query(
-      `SELECT ar.recomendacion_id AS recomendacion, ar.porcentaje
-       FROM avance_recomendacion ar
-       JOIN version_informe vi ON vi.version_informe_id = ar.version_informe_id
-       JOIN informe i ON i.informe_id = vi.informe_id
-       WHERE ar.recomendacion_id IN (?)
-       ORDER BY i.fecha_fin DESC, vi.numero_version DESC, ar.avance_id DESC`,
-      [recomendacionIds],
-    );
-    for (const f of filas) if (!avances.has(String(f.recomendacion))) avances.set(String(f.recomendacion), Number(f.porcentaje));
-    return avances;
   }
 }
 
