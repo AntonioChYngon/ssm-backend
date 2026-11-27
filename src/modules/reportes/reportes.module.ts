@@ -1,4 +1,4 @@
-// HU-14 y HU-15 · Reportes ejecutivos de avance (solo Administrador).
+// HU-14 y HU-15 · Reportes ejecutivos de avance (solo Administrador). HU-16: con cicloId corren sobre un ciclo histórico.
 import { Controller, Get, Injectable, Module, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
@@ -39,7 +39,19 @@ export type Incumplimiento = {
 
 export class FiltroLicenciaturasDto {
   @IsOptional() @Matches(PATRON_LICENCIATURAS) licenciaturaIds?: string;
+  /** HU-16: consulta un ciclo concreto (vigente o histórico). Sin él, el ciclo vigente de cada licenciatura. */
+  @IsOptional() @Matches(/^\d{1,19}$/, { message: 'cicloId no es válido.' }) cicloId?: string;
 }
+
+/** Ciclo vigente de cada licenciatura o, con cicloId (HU-16), ese ciclo aunque sea histórico. Siempre su último plan aprobado. */
+const condicionesCiclo = (cicloId?: string): { condiciones: string[]; valores: unknown[] } => ({
+  condiciones: [
+    ...(cicloId ? ['c.ciclo_id = ?'] : ["c.estado = 'VIGENTE'", 'c.vigencia_fin >= ?']),
+    "vp.estado = 'APROBADO'",
+    "vp.numero_version = (SELECT MAX(x.numero_version) FROM version_plan x WHERE x.ciclo_id = vp.ciclo_id AND x.estado = 'APROBADO')",
+  ],
+  valores: [cicloId ?? hoyEnMexico()],
+});
 
 export class FiltroIncumplimientoDto extends FiltroLicenciaturasDto {
   @IsDateString({}, { message: 'fechaCorte debe ser una fecha válida (AAAA-MM-DD).' }) fechaCorte: string;
@@ -75,7 +87,7 @@ export class ReportesService {
   constructor(@InjectDataSource() private readonly ds: DataSource) {}
 
   async resumenAtencion(filtros: FiltroLicenciaturasDto): Promise<AtencionLicenciatura[]> {
-    const filas = await this.recomendacionesVigentes(leerLicenciaturaIds(filtros.licenciaturaIds));
+    const filas = await this.recomendacionesVigentes(leerLicenciaturaIds(filtros.licenciaturaIds), filtros.cicloId);
     const avances = await ultimosAvances(this.ds, filas.map((f) => String(f.id)));
     const grupos = new Map<string, { nombre: string; porcentajes: (number | null)[] }>();
     for (const fila of filas) {
@@ -93,13 +105,7 @@ export class ReportesService {
 
   async incumplimiento(filtros: FiltroIncumplimientoDto): Promise<Incumplimiento[]> {
     const ids = leerLicenciaturaIds(filtros.licenciaturaIds);
-    const condiciones = [
-      "c.estado = 'VIGENTE'",
-      'c.vigencia_fin >= ?',
-      "vp.estado = 'APROBADO'",
-      "vp.numero_version = (SELECT MAX(x.numero_version) FROM version_plan x WHERE x.ciclo_id = vp.ciclo_id AND x.estado = 'APROBADO')",
-    ];
-    const valores: unknown[] = [hoyEnMexico()];
+    const { condiciones, valores } = condicionesCiclo(filtros.cicloId);
     if (ids) {
       condiciones.push('c.licenciatura_id IN (?)');
       valores.push(ids);
@@ -145,14 +151,8 @@ export class ReportesService {
       .filter((f) => f.real < filtros.porcentajeEsperado);
   }
 
-  private async recomendacionesVigentes(ids?: string[]): Promise<FilaRecomendacion[]> {
-    const condiciones = [
-      "c.estado = 'VIGENTE'",
-      'c.vigencia_fin >= ?',
-      "vp.estado = 'APROBADO'",
-      "vp.numero_version = (SELECT MAX(x.numero_version) FROM version_plan x WHERE x.ciclo_id = vp.ciclo_id AND x.estado = 'APROBADO')",
-    ];
-    const valores: unknown[] = [hoyEnMexico()];
+  private async recomendacionesVigentes(ids?: string[], cicloId?: string): Promise<FilaRecomendacion[]> {
+    const { condiciones, valores } = condicionesCiclo(cicloId);
     if (ids) {
       condiciones.push('c.licenciatura_id IN (?)');
       valores.push(ids);
@@ -195,5 +195,6 @@ export class ReportesController {
 @Module({
   controllers: [ReportesController],
   providers: [ReportesService],
+  exports: [ReportesService],
 })
 export class ReportesModule {}

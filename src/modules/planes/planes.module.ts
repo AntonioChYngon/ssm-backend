@@ -812,5 +812,6 @@ export class PlanesController {
   ],
   controllers: [PlanesController, CiclosController],
   providers: [PlanesService, CiclosService, proveedorCarpetas],
+  exports: [PlanesService],
 })
 export class PlanesModule {}

@@ -14,6 +14,7 @@ import { InformesModule } from './modules/informes/informes.module';
 import { NotificacionesModule } from './modules/notificaciones/notificaciones.module';
 import { PlanesModule } from './modules/planes/planes.module';
 import { RecordatoriosModule } from './modules/recordatorios/recordatorios.module';
+import { HistoricoModule } from './modules/historico/historico.module';
 import { ReportesModule } from './modules/reportes/reportes.module';
 import { TransversalesModule } from './modules/transversales/transversales.module';
 import { UsuariosModule } from './modules/usuarios/usuarios.module';
@@ -71,6 +72,7 @@ import { UsuariosModule } from './modules/usuarios/usuarios.module';
     RecordatoriosModule, // HU-10
     ReportesModule, // HU-15
     TransversalesModule, // HU-17
+    HistoricoModule, // HU-16
     UsuariosModule, // HU-02
   ],
   providers: [
